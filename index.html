@@ -1,0 +1,3060 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SDGs × 초음파 센서 문제해결 설계 플랫폼</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: 'Pretendard', 'Noto Sans KR', system-ui, -apple-system, sans-serif;
+      background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 50%, #312e81 100%);
+      color: #1e293b;
+      min-height: 100vh;
+      padding: 20px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      position: relative;
+    }
+    body::before {
+      content: '';
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: 
+        radial-gradient(circle at 20% 50%, rgba(139, 92, 246, 0.15) 0%, transparent 50%),
+        radial-gradient(circle at 80% 80%, rgba(99, 102, 241, 0.15) 0%, transparent 50%),
+        radial-gradient(circle at 40% 20%, rgba(79, 70, 229, 0.1) 0%, transparent 50%);
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    /* 화면 전환 컨테이너 */
+    .view-section {
+      display: none;
+      width: 100%;
+      max-width: 1000px;
+      background: rgba(255, 255, 255, 0.95);
+      backdrop-filter: blur(10px);
+      border-radius: 24px;
+      box-shadow: 0 20px 40px rgba(79, 70, 229, 0.2), 0 8px 16px rgba(139, 92, 246, 0.15);
+      border: 1px solid rgba(139, 92, 246, 0.2);
+      overflow: hidden;
+      animation: fadeIn 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+      position: relative;
+      z-index: 1;
+    }
+    .view-section.active { 
+      display: block; 
+    }
+    
+    /* 인트로 화면 특별 스타일 */
+    #view-intro {
+      background: transparent;
+      box-shadow: none;
+      border: none;
+      max-width: 100%;
+      width: 100%;
+      height: 100vh;
+      position: fixed;
+      top: 0;
+      left: 0;
+      padding: 0;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(20px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    @keyframes batHover {
+      0%, 100% { transform: translateY(-50%) translateY(0px); }
+      50% { transform: translateY(-50%) translateY(-15px); }
+    }
+
+    @keyframes bubbleFloat {
+      0%, 100% { transform: translateY(0px); }
+      50% { transform: translateY(-5px); }
+    }
+
+    /* --- 1. 인트로 & 로그인 스타일 --- */
+    #intro-screen {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 50%, #312e81 100%);
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      z-index: 100;
+    }
+    
+    /* 박쥐 애니메이션 컨테이너 */
+    #bat-container {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      z-index: 1;
+    }
+    
+    .flying-bat {
+      position: absolute;
+      font-size: 2rem;
+      opacity: 0.6;
+      animation: flyAround linear infinite;
+      will-change: transform;
+    }
+    
+    @keyframes flyAround {
+      0% { 
+        transform: translate(-10vw, 0) rotate(0deg) scale(1); 
+        opacity: 0;
+      }
+      10% { opacity: 0.8; }
+      25% { 
+        transform: translate(20vw, -10vh) rotate(10deg) scale(1.1); 
+      }
+      50% { 
+        transform: translate(50vw, 5vh) rotate(0deg) scale(1); 
+      }
+      75% { 
+        transform: translate(80vw, -5vh) rotate(-10deg) scale(0.9); 
+      }
+      90% { opacity: 0.8; }
+      100% { 
+        transform: translate(110vw, 0) rotate(0deg) scale(1); 
+        opacity: 0;
+      }
+    }
+    
+    /* 글래스모피즘 컨텐츠 */
+    .intro-content {
+      position: relative;
+      z-index: 10;
+      background: rgba(255, 255, 255, 0.1);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      padding: 60px;
+      border-radius: 32px;
+      text-align: center;
+      box-shadow: 0 25px 50px rgba(0,0,0,0.5);
+      max-width: 800px;
+      width: 90%;
+      animation: popIn 0.8s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+    
+    @keyframes popIn {
+      from { transform: scale(0.9) translateY(20px); opacity: 0; }
+      to { transform: scale(1) translateY(0); opacity: 1; }
+    }
+    
+    .main-icon {
+      font-size: 5rem;
+      margin-bottom: 10px;
+      display: inline-block;
+      animation: float 3s infinite ease-in-out;
+    }
+    
+    @keyframes float {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-10px); }
+    }
+    
+    .intro-title {
+      font-size: 3.5rem;
+      font-weight: 900;
+      color: #ffffff;
+      margin-bottom: 10px;
+      text-shadow: 0 4px 15px rgba(0,0,0,0.3);
+      letter-spacing: -1px;
+    }
+    
+    .intro-subtitle {
+      font-size: 1.2rem;
+      color: #bfdbfe;
+      margin-bottom: 50px;
+      font-weight: 300;
+    }
+    
+    .role-cards {
+      display: flex;
+      gap: 25px;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+    
+    .role-card {
+      flex: 1;
+      min-width: 200px;
+      background: rgba(255, 255, 255, 0.85);
+      padding: 30px 20px;
+      border-radius: 24px;
+      cursor: pointer;
+      transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+      text-align: center;
+      border: 2px solid transparent;
+      position: relative;
+      overflow: hidden;
+    }
+    
+    .role-card:hover {
+      transform: translateY(-12px) scale(1.03);
+      background: #ffffff;
+      box-shadow: 0 20px 40px rgba(0,0,0,0.3);
+      border-color: #fbbf24;
+    }
+    
+    .role-card:active {
+      transform: scale(0.98);
+    }
+    
+    .role-icon {
+      font-size: 48px;
+      margin-bottom: 15px;
+      display: block;
+    }
+    
+    .role-name {
+      font-size: 1.5rem;
+      font-weight: 800;
+      color: #1e293b;
+      margin-bottom: 5px;
+    }
+    
+    .role-desc {
+      font-size: 0.95rem;
+      color: #64748b;
+      font-weight: 500;
+    }
+    
+    /* 기존 intro-wrap (로그인 화면용) */
+    .intro-wrap {
+      padding: 60px 40px;
+      text-align: center;
+      max-width: 600px;
+      margin: 0 auto;
+    }
+    .intro-icon { font-size: 60px; margin-bottom: 20px; display: inline-block; }
+    .intro-title-alt { 
+      font-size: 28px; 
+      font-weight: 800; 
+      background: linear-gradient(135deg, #8b5cf6, #6366f1);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      margin-bottom: 12px; 
+    }
+    .intro-desc { color: #cbd5e1; margin-bottom: 40px; font-size: 16px; line-height: 1.6; }
+    
+    .role-emoji { font-size: 48px; margin-bottom: 15px; display: block; }
+    .role-name-alt { font-size: 18px; font-weight: 700; color: #8b5cf6; }
+    .role-sub { font-size: 13px; color: #94a3b8; margin-top: 6px; }
+
+    /* 로그인 폼 */
+    .login-box { text-align: left; background: rgba(237, 233, 254, 0.5); backdrop-filter: blur(10px); padding: 30px; border-radius: 16px; margin-top: 20px; border: 1px solid rgba(139, 92, 246, 0.2); }
+    .input-label { font-size: 14px; font-weight: 700; color: #7c3aed; margin-bottom: 8px; display: block; }
+    .input-field {
+      width: 100%; padding: 14px; border: 2px solid rgba(139, 92, 246, 0.3); border-radius: 12px; font-size: 16px; margin-bottom: 20px; transition: all 0.2s;
+      background: rgba(255, 255, 255, 0.9);
+    }
+    .input-field:focus { outline: none; border-color: #8b5cf6; background: #fff; box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.1); }
+    
+    .btn-primary {
+      width: 100%; padding: 16px; background: linear-gradient(135deg, #8b5cf6, #6366f1); color: white; border: none; border-radius: 12px;
+      font-size: 16px; font-weight: 700; cursor: pointer; transition: all 0.2s;
+      box-shadow: 0 4px 6px rgba(139, 92, 246, 0.3);
+    }
+    .btn-primary:hover { 
+      background: linear-gradient(135deg, #7c3aed, #4f46e5); 
+      transform: translateY(-1px);
+      box-shadow: 0 6px 12px rgba(139, 92, 246, 0.4);
+    }
+    .btn-text { background: none; border: none; color: #8b5cf6; margin-top: 15px; cursor: pointer; text-decoration: underline; font-size: 14px; }
+
+    /* --- 2. 교사 대시보드 & 설정 --- */
+    .dash-header {
+      padding: 20px 30px; background: #fff; border-bottom: 1px solid #e2e8f0;
+      display: flex; justify-content: space-between; align-items: center;
+    }
+    .dash-title { font-size: 20px; font-weight: 800; background: linear-gradient(135deg, #8b5cf6, #6366f1); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; display: flex; align-items: center; gap: 8px; }
+    .dash-controls { display: flex; gap: 10px; }
+    .btn-sm { padding: 8px 16px; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; border: 1px solid #e2e8f0; background: #fff; color: #475569; transition: all 0.2s; }
+    .btn-sm:hover { background: #f1f5f9; }
+    .btn-sm.danger { color: #ef4444; border-color: #fee2e2; }
+    .btn-sm.danger:hover { background: #fef2f2; }
+
+    .dash-content { padding: 30px; background: rgba(237, 233, 254, 0.3); min-height: 500px; max-height: 80vh; overflow-y: auto; }
+    
+    /* 학급/학생별 관리 스타일 */
+    .teacher-tabs {
+      display: flex; gap: 8px; padding: 0 30px; background: #fff; border-bottom: 1px solid #e2e8f0;
+    }
+    .teacher-tab {
+      padding: 12px 20px; font-size: 14px; font-weight: 600; cursor: pointer;
+      border: none; background: transparent; color: #64748b; border-bottom: 2px solid transparent;
+      transition: all 0.2s;
+    }
+    .teacher-tab.active {
+      color: #8b5cf6; border-bottom-color: #8b5cf6; background: rgba(139, 92, 246, 0.05);
+    }
+    .teacher-tab:hover {
+      color: #8b5cf6; background: rgba(139, 92, 246, 0.05);
+    }
+    
+    .management-layout {
+      display: flex; height: calc(80vh - 100px); background: #fff;
+    }
+    
+    .class-list-panel {
+      width: 250px; border-right: 1px solid #e2e8f0; overflow-y: auto;
+      background: #f8fafc;
+    }
+    .class-list-header {
+      padding: 15px; border-bottom: 1px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center;
+      background: #fff;
+    }
+    .class-list-title {
+      font-size: 14px; font-weight: 700; color: #1e293b;
+    }
+    .btn-add-class {
+      width: 28px; height: 28px; border-radius: 6px; border: 1px solid #cbd5e1;
+      background: #fff; color: #64748b; font-size: 18px; cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      transition: all 0.2s;
+    }
+    .btn-add-class:hover {
+      background: #3b82f6; color: white; border-color: #3b82f6;
+    }
+    
+    .class-item {
+      padding: 12px 15px; cursor: pointer; border-bottom: 1px solid #f1f5f9;
+      transition: background 0.2s; font-size: 13px; font-weight: 600; color: #475569;
+    }
+    .class-item:hover {
+      background: #ede9fe;
+    }
+    .class-item.active {
+      background: #e9d5ff; color: #6d28d9; border-left: 3px solid #8b5cf6;
+    }
+    
+    .student-list-panel {
+      width: 280px; border-right: 1px solid #e2e8f0; overflow-y: auto;
+      background: #f8fafc;
+    }
+    .student-list-header {
+      padding: 15px; border-bottom: 1px solid #e2e8f0; background: #fff;
+      font-size: 14px; font-weight: 700; color: #1e293b;
+    }
+    .student-item {
+      padding: 12px 15px; cursor: pointer; border-bottom: 1px solid #f1f5f9;
+      transition: background 0.2s; font-size: 13px; color: #475569;
+      display: flex; justify-content: space-between; align-items: center;
+    }
+    .student-item:hover {
+      background: #e0e7ff;
+    }
+    .student-item.active {
+      background: #dbeafe; color: #1e40af; border-left: 3px solid #3b82f6;
+    }
+    .student-badge {
+      font-size: 11px; padding: 2px 8px; border-radius: 10px;
+      background: #fee2e2; color: #991b1b; font-weight: 600;
+    }
+    .student-actions {
+      display: flex; gap: 5px; align-items: center;
+    }
+    .btn-delete-student {
+      padding: 4px 8px; font-size: 11px; background: #fee2e2; color: #991b1b;
+      border: none; border-radius: 6px; cursor: pointer; font-weight: 600;
+      transition: all 0.2s;
+    }
+    .btn-delete-student:hover {
+      background: #fecaca; transform: scale(1.05);
+    }
+    
+    .student-content-panel {
+      flex: 1; overflow-y: auto; background: #fff; padding: 30px;
+    }
+    .student-worksheet {
+      background: white; border-radius: 16px; padding: 30px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.05); max-width: 800px; margin: 0 auto;
+    }
+    .worksheet-header {
+      border-bottom: 2px solid #e2e8f0; padding-bottom: 20px; margin-bottom: 30px;
+      display: flex; justify-content: space-between; align-items: center;
+    }
+    .worksheet-title {
+      font-size: 24px; font-weight: 800; color: #1e293b;
+    }
+    .worksheet-status {
+      padding: 6px 16px; border-radius: 20px; font-size: 13px; font-weight: 600;
+    }
+    .worksheet-status.pending { background: #fffbeb; color: #b45309; }
+    .worksheet-status.approved { background: #dcfce7; color: #15803d; }
+    .worksheet-status.rejected { background: #fef2f2; color: #b91c1c; }
+    
+    .worksheet-section {
+      margin-bottom: 30px;
+    }
+    .worksheet-label {
+      font-size: 12px; font-weight: 700; color: #64748b; text-transform: uppercase;
+      letter-spacing: 0.5px; margin-bottom: 8px;
+    }
+    .worksheet-value {
+      font-size: 15px; color: #1e293b; line-height: 1.6;
+      padding: 12px; background: #f8fafc; border-radius: 8px; border: 1px solid #e2e8f0;
+    }
+    
+    .worksheet-feedback {
+      margin-top: 30px; padding-top: 30px; border-top: 2px solid #e2e8f0;
+    }
+    .worksheet-feedback-input {
+      width: 100%; padding: 12px; border: 2px solid #e2e8f0; border-radius: 8px;
+      font-size: 14px; margin-bottom: 15px; min-height: 80px; resize: vertical;
+    }
+    .worksheet-actions {
+      display: flex; gap: 10px;
+    }
+    .worksheet-btn {
+      flex: 1; padding: 12px; border-radius: 8px; border: none;
+      font-size: 14px; font-weight: 600; cursor: pointer; transition: all 0.2s;
+    }
+    .worksheet-btn.approve {
+      background: #dcfce7; color: #15803d;
+    }
+    .worksheet-btn.approve:hover {
+      background: #bbf7d0;
+    }
+    .worksheet-btn.reject {
+      background: #fee2e2; color: #991b1b;
+    }
+    .worksheet-btn.reject:hover {
+      background: #fecaca;
+    }
+    
+    .empty-state {
+      text-align: center; padding: 60px 20px; color: #94a3b8;
+    }
+    .empty-state-icon {
+      font-size: 48px; margin-bottom: 15px;
+    }
+    .teacher-config-box { background: #fff; padding: 25px; border-radius: 16px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
+    .prompt-editor {
+      width: 100%; height: 150px; padding: 15px; border: 2px solid #e2e8f0; border-radius: 12px;
+      font-family: monospace; font-size: 14px; resize: vertical; line-height: 1.5;
+      background: #f8fafc; color: #334155;
+    }
+    .prompt-editor:focus { border-color: #8b5cf6; background: #fff; outline: none; }
+
+    /* 대시보드 카드 그리드 */
+    .submission-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 20px; }
+    .sub-card {
+      background: white; border-radius: 16px; padding: 20px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.02); border: 1px solid #e2e8f0;
+      display: flex; flex-direction: column; gap: 12px; position: relative;
+      transition: transform 0.2s;
+    }
+    .sub-card:hover { transform: translateY(-2px); box-shadow: 0 8px 16px rgba(0,0,0,0.05); }
+    .sub-card.approved { border-top: 4px solid #8b5cf6; background: rgba(237, 233, 254, 0.5); }
+    .sub-card.rejected { border-top: 4px solid #ef4444; }
+    .sub-card.pending { border-top: 4px solid #f59e0b; }
+
+    .sub-meta { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #f1f5f9; padding-bottom: 10px; }
+    .sub-user { font-weight: 700; font-size: 16px; color: #0f172a; }
+    .sub-badge { font-size: 11px; font-weight: 700; padding: 4px 10px; border-radius: 99px; text-transform: uppercase; }
+    .badge-pending { background: #fffbeb; color: #b45309; }
+    .badge-approved { background: #dcfce7; color: #15803d; }
+    .badge-rejected { background: #fef2f2; color: #b91c1c; }
+
+    .sub-body { font-size: 13px; color: #475569; display: flex; flex-direction: column; gap: 8px; }
+    .sub-row label { font-size: 11px; font-weight: 700; color: #94a3b8; display: block; margin-bottom: 2px; }
+    .sub-row p { margin: 0; line-height: 1.4; }
+
+    .feedback-area { margin-top: auto; padding-top: 10px; border-top: 1px solid #f1f5f9; }
+    .feedback-input { width: 100%; padding: 8px 12px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 13px; margin-bottom: 8px; }
+    .action-group { display: flex; gap: 8px; }
+    .action-btn { flex: 1; padding: 8px; border-radius: 6px; border: none; font-weight: 700; cursor: pointer; font-size: 12px; }
+    .btn-approve { background: #dcfce7; color: #15803d; }
+    .btn-reject { background: #fee2e2; color: #991b1b; }
+    .btn-approve:hover { background: #bbf7d0; }
+    .btn-reject:hover { background: #fecaca; }
+
+    /* --- 3. 학생 캔버스 UI --- */
+    .app-inner { padding: 30px; position: relative; display: flex; flex-direction: column; height: 90vh; }
+    
+    /* 상단 배너 */
+    .status-banner {
+      background: linear-gradient(135deg, #0f172a, #1e293b); color: white; padding: 12px 20px;
+      font-size: 14px; font-weight: 600; display: flex; justify-content: space-between; align-items: center;
+      margin: -30px -30px 20px -30px; /* Full width */
+    }
+    .status-banner.approved { background: linear-gradient(135deg, #8b5cf6, #7c3aed); }
+    .status-banner.rejected { background: linear-gradient(135deg, #ef4444, #dc2626); }
+    .status-banner.pending { background: linear-gradient(135deg, #f59e0b, #eab308); }
+
+    .header { display: flex; align-items: center; gap: 12px; margin-bottom: 20px; }
+    .header-icon { width: 44px; height: 44px; background: linear-gradient(135deg, #8b5cf6, #6366f1); border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 24px; color: white; box-shadow: 0 4px 12px rgba(139, 92, 246, 0.3); }
+    .header h1 { margin: 0; font-size: 20px; font-weight: 800; color: #1e293b; }
+    .user-tag { margin-left: auto; background: rgba(139, 92, 246, 0.1); color: #7c3aed; padding: 6px 12px; border-radius: 20px; font-size: 13px; font-weight: 700; border: 1px solid rgba(139, 92, 246, 0.2); }
+
+    .scroll-area { flex: 1; overflow-y: auto; padding-right: 5px; padding-bottom: 20px; }
+
+    /* 스텝 UI */
+    .progress-nav { display: flex; gap: 5px; margin-bottom: 20px; }
+    .prog-step { flex: 1; height: 6px; background: #e2e8f0; border-radius: 3px; position: relative; }
+    .prog-step.active { background: linear-gradient(90deg, #8b5cf6, #6366f1); }
+    .prog-step.done { background: #8b5cf6; }
+
+    .step-container { display: none; animation: fadeIn 0.3s; }
+    .step-container.active { display: block; }
+    .design-section { display: block; animation: fadeIn 0.3s; }
+    .step-header { margin-bottom: 15px; }
+    .step-title { font-size: 18px; font-weight: 700; color: #1e293b; margin-bottom: 5px; }
+    .step-desc { font-size: 14px; color: #64748b; }
+
+    /* 폼 요소 */
+    .form-group { margin-bottom: 20px; }
+    .label { font-size: 13px; font-weight: 700; color: #475569; margin-bottom: 6px; display: block; }
+    .text-area { width: 100%; border: 2px solid #e2e8f0; border-radius: 12px; padding: 12px; font-size: 15px; resize: vertical; min-height: 100px; transition: border-color 0.2s; }
+    .text-area:focus { outline: none; border-color: #8b5cf6; box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.1); }
+    .select-box { width: 100%; border: 2px solid #e2e8f0; border-radius: 12px; padding: 12px; font-size: 15px; background: white; }
+    .input-line { width: 100%; border: 2px solid #e2e8f0; border-radius: 12px; padding: 12px; font-size: 15px; }
+
+    /* 예시 버튼 */
+    .helper-btn { background: #fff7ed; color: #ea580c; border: 1px dashed #fdba74; padding: 8px 16px; border-radius: 20px; font-size: 13px; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; gap: 5px; margin-bottom: 15px; }
+    .helper-btn:hover { background: #ffedd5; }
+
+    /* 채팅 피드백 */
+    .chat-box { background: rgba(237, 233, 254, 0.5); border: 1px solid rgba(139, 92, 246, 0.2); border-radius: 16px; padding: 15px; margin-top: 20px; max-height: 300px; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; display:none; }
+    .chat-bubble { max-width: 90%; padding: 10px 14px; border-radius: 12px; font-size: 14px; line-height: 1.5; }
+    .chat-ai { align-self: flex-start; background: #fff; border: 1px solid #cbd5e1; color: #334155; border-bottom-left-radius: 2px; }
+    .chat-user { align-self: flex-end; background: linear-gradient(135deg, #8b5cf6, #6366f1); color: white; border-bottom-right-radius: 2px; }
+    .chat-warn { background: #fef2f2; border: 1px solid #fecaca; color: #991b1b; align-self: flex-start; }
+    .chat-success { background: #f0fdf4; border: 1px solid #bbf7d0; color: #166534; align-self: flex-start; }
+
+    .bottom-nav { margin-top: auto; padding-top: 20px; border-top: 1px solid #f1f5f9; display: flex; justify-content: flex-end; gap: 10px; }
+    .nav-btn { padding: 10px 24px; border-radius: 10px; font-weight: 700; border: none; cursor: pointer; font-size: 14px; transition: all 0.2s; }
+    .btn-back { background: #f1f5f9; color: #64748b; }
+    .btn-next { background: linear-gradient(135deg, #8b5cf6, #6366f1); color: white; box-shadow: 0 4px 6px rgba(139, 92, 246, 0.3); }
+    .btn-check { background: linear-gradient(135deg, #6366f1, #4f46e5); color: white; box-shadow: 0 4px 6px rgba(99, 102, 241, 0.3); }
+    .btn-submit { background: linear-gradient(135deg, #8b5cf6, #7c3aed); color: white; box-shadow: 0 4px 6px rgba(139, 92, 246, 0.2); }
+    .nav-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    /* 센서 가이드 & 카드 */
+    .sensor-tip { background: rgba(237, 233, 254, 0.6); border-left: 4px solid #8b5cf6; padding: 12px 16px; border-radius: 8px; font-size: 13px; color: #6d28d9; margin-bottom: 20px; line-height: 1.5; }
+    .dual-cols { display: flex; gap: 15px; }
+    .col-card { flex: 1; background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 15px; }
+    .col-header { font-size: 12px; font-weight: 700; text-transform: uppercase; margin-bottom: 8px; color: #64748b; }
+    .col-card.on { border-top: 3px solid #8b5cf6; }
+    .col-card.off { border-top: 3px solid #f59e0b; }
+
+    @media (max-width: 600px) { .dual-cols { flex-direction: column; } }
+
+    /* --- 초음파 센서 학습 페이지 스타일 --- */
+    .quiz-option-btn:hover { 
+      background: rgba(248, 250, 252, 0.8) !important; 
+      border-color: rgba(139, 92, 246, 0.3) !important; 
+      transform: translateY(-2px);
+    }
+    .quiz-option-btn.correct { 
+      background: rgba(236, 253, 245, 0.8) !important; 
+      border-color: #8b5cf6 !important; 
+      color: #7c3aed !important; 
+    }
+    .quiz-option-btn.wrong { 
+      background: rgba(254, 242, 242, 0.8) !important; 
+      border-color: #ef4444 !important; 
+      color: #991b1b !important; 
+    }
+
+    /* --- 상단 고정 홈 버튼 네비게이션 --- */
+    .top-nav {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      background: rgba(255, 255, 255, 0.9);
+      backdrop-filter: blur(10px);
+      border-bottom: 1px solid rgba(139, 92, 246, 0.2);
+      padding: 12px 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      z-index: 1000;
+      box-shadow: 0 2px 8px rgba(16, 185, 129, 0.1);
+    }
+    .top-nav.hidden { display: none; }
+    .home-btn {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 16px;
+      background: linear-gradient(135deg, #8b5cf6, #6366f1);
+      color: white;
+      border: none;
+      border-radius: 12px;
+      font-size: 14px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.2s;
+      box-shadow: 0 2px 4px rgba(16, 185, 129, 0.3);
+    }
+    .home-btn:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 4px 8px rgba(16, 185, 129, 0.4);
+      background: linear-gradient(135deg, #059669, #0284c7);
+    }
+    .top-nav-title {
+      font-size: 14px;
+      font-weight: 600;
+      background: linear-gradient(135deg, #8b5cf6, #6366f1);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+  </style>
+</head>
+<body>
+
+<!-- 상단 고정 홈 네비게이션 -->
+<div id="top-nav" class="top-nav hidden">
+  <div class="top-nav-title">SDGs × 초음파 센서 문제해결 설계 플랫폼</div>
+  <button class="home-btn" onclick="showIntro()">
+    🏠 홈으로
+  </button>
+</div>
+
+<!-- VIEW 1: 인트로 (역할 선택) -->
+<div id="view-intro" class="view-section active">
+  <div id="intro-screen">
+    <!-- 배경에 날아다니는 박쥐들이 생성될 컨테이너 -->
+    <div id="bat-container"></div>
+    
+    <!-- 중앙 컨텐츠 박스 (유리 효과) -->
+    <div class="intro-content">
+      <div class="main-icon">🦇</div>
+      <h1 class="intro-title">SDGs × 초음파 센서</h1>
+      <p class="intro-subtitle">세상을 바꾸는 아이디어, AI와 함께 설계해보세요.</p>
+    
+    <div class="role-cards">
+      <div class="role-card" onclick="goToStudentLogin()">
+          <span class="role-icon">👨‍🎓</span>
+        <div class="role-name">학생 (Student)</div>
+          <div class="role-desc">아이디어 설계 및 제출</div>
+      </div>
+      <div class="role-card" onclick="goToTeacherLogin()">
+          <span class="role-icon">👩‍🏫</span>
+        <div class="role-name">교사 (Teacher)</div>
+          <div class="role-desc">제출 현황 및 평가</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- VIEW 2-S: 학생 로그인 -->
+<div id="view-student-login" class="view-section">
+  <div class="intro-wrap">
+    <h2 class="intro-title">학생 로그인</h2>
+    <div class="login-box">
+      <label class="input-label">학번 (Class ID)</label>
+      <input type="text" id="std-id" class="input-field" placeholder="예: 20125">
+      <label class="input-label">이름 (Name)</label>
+      <input type="text" id="std-name" class="input-field" placeholder="예: 김코딩">
+      <button class="btn-primary" onclick="studentLogin()">시작하기</button>
+      <div style="text-align:center;">
+        <button class="btn-text" onclick="showIntro()">뒤로 가기</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- VIEW 2-T: 교사 로그인 -->
+<div id="view-teacher-login" class="view-section">
+  <div class="intro-wrap">
+    <h2 class="intro-title">교사 로그인</h2>
+    <div class="login-box">
+      <label class="input-label">비밀번호 (Password)</label>
+      <input type="password" id="tea-pw" class="input-field" placeholder="비밀번호를 입력하세요">
+      <button class="btn-primary" onclick="teacherLogin()">로그인</button>
+      <div style="text-align:center;">
+        <button class="btn-text" onclick="showIntro()">뒤로 가기</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- VIEW 3-T: 교사 대시보드 -->
+<div id="view-teacher-dashboard" class="view-section" style="max-width:1400px;">
+  <div class="dash-header">
+    <div class="dash-title">📊 교사 관리 대시보드</div>
+    <div class="dash-controls">
+      <button class="btn-sm" onclick="goToTeacherConfig()">⚙️ 평가 기준 설정</button>
+      <button class="btn-sm danger" onclick="clearData()">🗑️ 데이터 초기화</button>
+      <button class="btn-sm" onclick="showIntro()">🚪 로그아웃</button>
+    </div>
+  </div>
+  
+  <!-- 탭 메뉴 -->
+  <div class="teacher-tabs">
+    <button class="teacher-tab active" onclick="switchTeacherTab('class')">학급별 관리</button>
+    <button class="teacher-tab" onclick="switchTeacherTab('student')">학생별 관리</button>
+  </div>
+  
+  <!-- 학급별 관리 뷰 -->
+  <div id="class-management-view" class="management-layout" style="display: flex;">
+    <div class="class-list-panel">
+      <div class="class-list-header">
+        <span class="class-list-title">학급 목록</span>
+        <button class="btn-add-class" onclick="showAddClassDialog()" title="학급 추가">+</button>
+      </div>
+      <div id="class-list-container">
+        <!-- 학급 목록이 여기에 생성됩니다 -->
+      </div>
+    </div>
+    <div class="student-list-panel">
+      <div class="student-list-header">학생 목록</div>
+      <div id="student-list-container">
+        <!-- 선택된 학급의 학생 목록이 여기에 생성됩니다 -->
+      </div>
+    </div>
+    <div class="student-content-panel">
+      <div id="student-worksheet-container">
+        <!-- 선택된 학생의 학습지가 여기에 생성됩니다 -->
+      </div>
+    </div>
+  </div>
+  
+  <!-- 학생별 관리 뷰 -->
+  <div id="student-management-view" class="management-layout" style="display: none;">
+    <div class="student-list-panel" style="width: 320px;">
+      <div class="student-list-header">전체 학생</div>
+      <div id="all-student-list-container">
+        <!-- 전체 학생 목록이 여기에 생성됩니다 -->
+      </div>
+    </div>
+    <div class="student-content-panel">
+      <div id="all-student-worksheet-container">
+        <!-- 선택된 학생의 학습지가 여기에 생성됩니다 -->
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- VIEW 4-T: 교사 설정 (프롬프트) -->
+<div id="view-teacher-config" class="view-section">
+  <div class="intro-wrap" style="max-width:800px;">
+    <h2 class="intro-title">⚙️ AI 평가 기준 설정</h2>
+    <p class="intro-desc">학생들이 [검사] 버튼을 누를 때, AI가 참고할 평가 기준입니다.</p>
+    
+    <div class="teacher-config-box" style="text-align:left;">
+      <label class="input-label">🔑 OpenAI API 키 (선택사항 - 설정 시 AI 피드백 활성화)</label>
+      <input type="password" id="api-key" class="input-field" placeholder="sk-..." style="margin-bottom:15px;">
+      <small style="color:#64748b; font-size:12px;">※ API 키를 설정하지 않으면 기본 검증만 수행됩니다. OpenAI API 키는 백엔드 서버를 통해 안전하게 관리하는 것을 권장합니다.</small>
+      
+      <label class="input-label" style="margin-top:20px;">📝 AI 페르소나 및 평가 가이드</label>
+      <textarea id="teacher-prompt" class="prompt-editor">
+당신은 SDGs 교육 전문가이자 창의적 문제해결 코치입니다. 학생의 설계를 다음 기준으로 평가하고 친절하게 피드백해주세요.
+
+[평가 기준 - 각 항목별로 구체적으로 평가]
+
+1. **실현 가능성 (Feasibility)**
+   - 초음파 센서의 기술적 한계를 정확히 이해했는가? (거리만 측정 가능, 물체 종류 구별 불가)
+   - 제안한 해결책이 실제로 구현 가능한 수준인가?
+   - 사용한 거리 기준이 합리적인가?
+   - 예상되는 기술적 문제점은 무엇인가?
+
+2. **SDGs 관련성 (Relevance)**
+   - 선택한 SDGs 목표와 문제 해결 방법이 실제로 연관이 있는가?
+   - 이 해결책이 목표 달성에 어떻게 기여하는지 명확한가?
+   - 구체적인 영향력(예: 물 절약량, 에너지 절감률 등)을 고려했는가?
+
+3. **구체성 및 명확성 (Specificity)**
+   - IF-THEN 조건이 코딩 가능할 정도로 구체적인가?
+   - 센서 배치 위치와 작동 조건이 명확한가?
+   - 장치의 ON/OFF 동작이 논리적으로 연결되어 있는가?
+   - 예외 상황(센서 오작동, 여러 사람 동시 사용 등)을 고려했는가?
+
+4. **안전성 및 실용성 (Safety & Practicality)**
+   - 장치 작동 시 안전 위험이 없는가?
+   - 실제 사용 환경에서 실용적일 수 있는가?
+   - 유지보수와 관리가 가능한가?
+
+5. **창의성 및 개선점 (Creativity & Improvements)**
+   - 문제에 대한 새로운 관점이나 창의적 접근이 있는가?
+   - 더 효과적인 방법은 무엇이 있을까?
+   - 추가로 고려하면 좋을 점은?
+
+[피드백 작성 가이드]
+- 학생 이름을 부르며 친절하고 격려하는 톤으로 작성
+- 먼저 잘한 점을 2-3개 구체적으로 언급
+- 각 평가 기준별로 개선할 점을 구체적으로 제시
+- 정답을 알려주기보다 스스로 생각할 수 있는 질문 던지기
+- SDGs 목표 달성에 대한 영향력을 구체적으로 설명
+- 실현 가능성을 높이기 위한 실용적 제안
+- 마무리는 긍정적인 격려와 함께 다음 단계 제시
+
+[피드백 형식]
+✅ 잘한 점: [구체적 내용]
+💡 개선하면 좋을 점: [구체적 내용]
+🎯 SDGs 관련성: [구체적 설명]
+⚙️ 실현 가능성: [구체적 평가]
+🚀 다음 단계: [구체적 제안]
+      </textarea>
+    </div>
+    <br>
+    <button class="btn-primary" onclick="saveTeacherConfig()">저장하고 돌아가기</button>
+    <button class="btn-text" onclick="showDashboard()">취소</button>
+  </div>
+</div>
+
+<!-- VIEW 5-S-L: 학생 초음파 센서 원리 학습 -->
+<div id="view-student-learning" class="view-section">
+  <div class="app-inner" style="max-height: 90vh; overflow-y: auto;">
+    <div class="header" style="margin-bottom: 20px;">
+      <div class="header-icon">🦇</div>
+      <h1>초음파 센서 원리 이해</h1>
+      <div class="user-tag" id="learning-user-display">학생</div>
+      <button onclick="goToDesignPage()" style="margin-left: auto; padding: 10px 20px; background: linear-gradient(135deg, #8b5cf6, #6366f1); color: white; border: none; border-radius: 10px; font-size: 14px; font-weight: 600; cursor: pointer; box-shadow: 0 4px 6px rgba(139, 92, 246, 0.3); transition: all 0.2s;">
+        아이디어 설계하러 가기 →
+      </button>
+    </div>
+    
+    <!-- 학습 완료 배지 -->
+    <div id="learning-completed-badge" style="display: none; background: rgba(237, 233, 254, 0.8); border: 2px solid #8b5cf6; border-radius: 12px; padding: 15px; margin-bottom: 20px; text-align: center;">
+      <div style="font-size: 18px; font-weight: 700; color: #7c3aed; margin-bottom: 5px;">✅ 학습 완료!</div>
+      <div style="font-size: 14px; color: #6d28d9;">이미 학습을 완료하셨습니다. 내용을 다시 확인하거나 아이디어 설계 페이지로 이동할 수 있습니다.</div>
+    </div>
+
+    <div style="margin-bottom: 20px;">
+      <div style="background: rgba(237, 233, 254, 0.6); border: 2px solid #8b5cf6; border-radius: 16px; padding: 20px; text-align: left; width: 100%;">
+        <strong style="color: #6d28d9; font-size: 16px;">💡 기술적 원리 이해:</strong><br>
+        <div style="margin-top: 10px; color: #6d28d9; line-height: 1.8;">
+          1. 박쥐가 나방을 낚아채는 거리는 약 <strong>2~5m</strong>입니다.<br>
+          2. <strong>HC-SR04 초음파 센서</strong>의 측정 범위는 <strong>2cm ~ 400cm(4m)</strong>이며, 이 범위 안에서 가장 정확하게 거리를 잴 수 있어요!
+        </div>
+      </div>
+    </div>
+
+    <!-- 시뮬레이션 영역 -->
+    <div style="background: rgba(248, 250, 252, 0.8); border: 2px solid rgba(139, 92, 246, 0.2); border-radius: 20px; padding: 30px; margin-bottom: 30px;">
+      <div id="sim-visual" style="width: 100%; height: 350px; background: white; border-radius: 16px; position: relative; overflow: hidden; border: 2px solid rgba(139, 92, 246, 0.3); margin-bottom: 20px; display: flex; align-items: center;">
+        <!-- 박쥐 말풍선 -->
+        <div id="bat-speech-bubble" style="position: absolute; left: 180px; top: 25%; z-index: 15; opacity: 1; transition: opacity 0.3s ease; transform: translateY(0);">
+          <div id="bat-bubble-container" style="background: linear-gradient(135deg, #fef3c7, #fde68a); border: 2px solid #f59e0b; border-radius: 16px; padding: 12px 18px; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15); position: relative; max-width: 250px; animation: bubbleFloat 2s ease-in-out infinite;">
+            <div id="bat-speech-text" style="font-size: 14px; font-weight: 600; color: #92400e; line-height: 1.4; text-align: center;">
+              음... 아직은 좀 먼데? (탐색 중)
+            </div>
+            <!-- 말풍선 꼬리 -->
+            <div id="bat-tail-outer" style="position: absolute; left: -10px; top: 50%; transform: translateY(-50%); width: 0; height: 0; border-top: 10px solid transparent; border-bottom: 10px solid transparent; border-right: 12px solid #f59e0b;"></div>
+            <div id="bat-tail-inner" style="position: absolute; left: -8px; top: 50%; transform: translateY(-50%); width: 0; height: 0; border-top: 8px solid transparent; border-bottom: 8px solid transparent; border-right: 10px solid #fde68a;"></div>
+          </div>
+        </div>
+        <div id="sim-bat" style="position: absolute; left: 50px; font-size: 80px; z-index: 10; top: 50%; transform: translateY(-50%); animation: batHover 2s ease-in-out infinite;">🦇</div>
+        <div id="sim-moth" style="position: absolute; right: 10%; font-size: 60px; transition: right 0.3s; z-index: 10; top: 50%; transform: translateY(-50%);">🦋</div>
+        <div id="wave-ping" style="position: absolute; width: 60px; height: 60px; border-radius: 50%; opacity: 0; z-index: 5; top: 50%; transform: translateY(-50%); left: 90px; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 14px; border: 3px solid #6366f1; background: rgba(99, 102, 241, 0.2); color: #4f46e5;">Ping</div>
+        <div id="wave-pong" style="position: absolute; width: 60px; height: 60px; border-radius: 50%; opacity: 0; z-index: 5; top: 50%; transform: translateY(-50%); display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 14px; border: 3px solid #8b5cf6; background: rgba(139, 92, 246, 0.2); color: #7c3aed;">Pong</div>
+        <div style="position: absolute; bottom: 10px; left: 100px; right: 100px; height: 30px; border-top: 2px solid #94a3b8; display: flex; justify-content: space-between; font-size: 11px; color: #64748b; padding-top: 5px;">
+          <span>0cm</span><span>100cm</span><span>200cm</span><span>300cm</span><span>400cm</span>
+        </div>
+      </div>
+
+      <div style="display: flex; gap: 20px; align-items: center; flex-wrap: wrap;">
+        <div style="flex: 1; min-width: 300px;">
+          <label style="font-weight: bold; font-size: 14px; color: #7c3aed; display: block; margin-bottom: 8px;">거리 조절 (2cm ~ 400cm)</label>
+          <input type="range" id="dist-slider" min="2" max="400" value="400" style="width: 100%; cursor: pointer;" oninput="updateSimDistance(this.value)">
+        </div>
+        <div style="display: flex; gap: 15px;">
+          <div style="background: white; padding: 8px 20px; border-radius: 12px; border: 2px solid rgba(139, 92, 246, 0.3); font-weight: bold; font-size: 16px; color: #7c3aed;" id="disp-distance">400cm</div>
+          <div style="background: white; padding: 8px 20px; border-radius: 12px; border: 2px solid rgba(239, 68, 68, 0.3); font-weight: bold; font-size: 16px; color: #dc2626;" id="disp-time">23,529μs</div>
+        </div>
+        <button onclick="fireWave()" style="padding: 12px 30px; background: linear-gradient(135deg, #8b5cf6, #6366f1); color: white; border: none; border-radius: 12px; font-weight: bold; cursor: pointer; box-shadow: 0 4px 6px rgba(139, 92, 246, 0.3); transition: all 0.2s;">
+          📡 발사!
+        </button>
+      </div>
+    </div>
+
+    <!-- 퀴즈 영역 -->
+    <div style="background: rgba(255, 251, 235, 0.8); border: 2px solid #f59e0b; border-radius: 16px; padding: 25px; margin-bottom: 20px;">
+      <div style="font-size: 18px; font-weight: 800; color: #92400e; margin-bottom: 15px; display: flex; align-items: center; gap: 8px;">
+        ❓ <strong>개념 체크:</strong> 초음파 센서로 알 수 있는 것은?
+      </div>
+      <div style="display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 15px;">
+        <button class="quiz-option-btn" onclick="checkQuizAnswer(this, false, 'color')" style="flex: 1; min-width: 150px; padding: 15px; border: 2px solid #e2e8f0; background: white; border-radius: 12px; font-size: 15px; font-weight: 600; cursor: pointer; transition: all 0.2s; color: #475569;">
+          물체의 색깔
+        </button>
+        <button class="quiz-option-btn" onclick="checkQuizAnswer(this, false, 'type')" style="flex: 1; min-width: 150px; padding: 15px; border: 2px solid #e2e8f0; background: white; border-radius: 12px; font-size: 15px; font-weight: 600; cursor: pointer; transition: all 0.2s; color: #475569;">
+          물체의 종류
+        </button>
+        <button class="quiz-option-btn" onclick="checkQuizAnswer(this, true, 'distance')" style="flex: 1; min-width: 150px; padding: 15px; border: 2px solid #e2e8f0; background: white; border-radius: 12px; font-size: 15px; font-weight: 600; cursor: pointer; transition: all 0.2s; color: #475569;">
+          물체까지의 거리
+        </button>
+        <button class="quiz-option-btn" onclick="checkQuizAnswer(this, false, 'sound')" style="flex: 1; min-width: 150px; padding: 15px; border: 2px solid #e2e8f0; background: white; border-radius: 12px; font-size: 15px; font-weight: 600; cursor: pointer; transition: all 0.2s; color: #475569;">
+          소리 측정
+        </button>
+      </div>
+      <div id="quiz-feedback" style="margin-top: 15px; font-size: 14px; font-weight: bold; padding: 12px; border-radius: 12px; display: none;"></div>
+    </div>
+
+    <!-- 배운 점 정리 (드래그 앤 드롭 빈칸 채우기) -->
+    <div style="margin-bottom: 20px;">
+      <div style="font-weight: bold; color: #8b5cf6; font-size: 18px; display: flex; align-items: center; gap: 8px; margin-bottom: 10px;">
+        ✨ <strong>[핵심 요약] 단어를 끌어넣어 완성하세요!</strong>
+      </div>
+      <div style="color: #64748b; font-size: 14px; margin-bottom: 15px; display: flex; align-items: center; gap: 5px;">
+        🖱️ 아래 단어를 마우스로 끌어서 빈칸에 넣어보세요.
+      </div>
+      
+      <div style="background: linear-gradient(135deg, #f5f3ff 0%, #ede9fe 100%); border: 2px solid #a78bfa; border-radius: 20px; padding: 30px; margin-bottom: 15px; box-shadow: 0 4px 12px rgba(139, 92, 246, 0.15);">
+        <!-- 상단 점선 영역 - 드래그 가능한 단어 버튼들 -->
+        <div style="border: 2px dashed #a78bfa; border-radius: 16px; padding: 25px; margin-bottom: 30px; background: rgba(255, 255, 255, 0.8); backdrop-filter: blur(10px);">
+          <div id="word-container" style="display: flex; gap: 12px; flex-wrap: wrap; justify-content: center;">
+            <div class="drag-word" draggable="true" data-word="초음파" style="background: linear-gradient(135deg, #8b5cf6, #6366f1); color: white; padding: 12px 28px; border-radius: 25px; font-size: 16px; font-weight: 600; cursor: grab; user-select: none; box-shadow: 0 4px 8px rgba(139, 92, 246, 0.3); transition: all 0.3s ease;">
+              초음파
+            </div>
+            <div class="drag-word" draggable="true" data-word="반사" style="background: linear-gradient(135deg, #8b5cf6, #6366f1); color: white; padding: 12px 28px; border-radius: 25px; font-size: 16px; font-weight: 600; cursor: grab; user-select: none; box-shadow: 0 4px 8px rgba(139, 92, 246, 0.3); transition: all 0.3s ease;">
+              반사
+            </div>
+            <div class="drag-word" draggable="true" data-word="시간" style="background: linear-gradient(135deg, #8b5cf6, #6366f1); color: white; padding: 12px 28px; border-radius: 25px; font-size: 16px; font-weight: 600; cursor: grab; user-select: none; box-shadow: 0 4px 8px rgba(139, 92, 246, 0.3); transition: all 0.3s ease;">
+              시간
+            </div>
+            <div class="drag-word" draggable="true" data-word="거리" style="background: linear-gradient(135deg, #8b5cf6, #6366f1); color: white; padding: 12px 28px; border-radius: 25px; font-size: 16px; font-weight: 600; cursor: grab; user-select: none; box-shadow: 0 4px 8px rgba(139, 92, 246, 0.3); transition: all 0.3s ease;">
+              거리
+            </div>
+          </div>
+        </div>
+        
+        <!-- 빈칸이 있는 문장 -->
+        <div style="font-size: 18px; line-height: 2.4; color: #1e293b; text-align: left; padding: 15px 0;">
+          초음파 센서는 
+          <span class="drop-zone" id="drop1" data-correct="초음파" style="display: inline-block; min-width: 100px; padding: 8px 12px; border: 2px dashed #c4b5fd; border-radius: 8px; background: white; margin: 0 5px; vertical-align: middle; text-align: center;"></span>
+          를 쏘고, 물체에 
+          <span class="drop-zone" id="drop2" data-correct="반사" style="display: inline-block; min-width: 100px; padding: 8px 12px; border: 2px dashed #c4b5fd; border-radius: 8px; background: white; margin: 0 5px; vertical-align: middle; text-align: center;"></span>
+          되어 돌아오는 
+          <span class="drop-zone" id="drop3" data-correct="시간" style="display: inline-block; min-width: 100px; padding: 8px 12px; border: 2px dashed #c4b5fd; border-radius: 8px; background: white; margin: 0 5px; vertical-align: middle; text-align: center;"></span>
+          으로 
+          <span class="drop-zone" id="drop4" data-correct="거리" style="display: inline-block; min-width: 100px; padding: 8px 12px; border: 2px dashed #c4b5fd; border-radius: 8px; background: white; margin: 0 5px; vertical-align: middle; text-align: center;"></span>
+          를 측정합니다.
+        </div>
+      </div>
+      
+      <!-- 다시하기 및 정답 확인 버튼 -->
+      <div style="display: flex; gap: 10px; justify-content: flex-end; margin-top: 15px;">
+        <button onclick="resetDragDrop()" style="padding: 12px 28px; background: #64748b; color: white; border: none; border-radius: 10px; font-size: 14px; font-weight: 600; cursor: pointer; transition: all 0.3s ease; box-shadow: 0 2px 6px rgba(100, 116, 139, 0.2);">
+          다시하기
+        </button>
+        <button onclick="checkDragDropAnswer()" style="padding: 12px 28px; background: linear-gradient(135deg, #8b5cf6, #6366f1); color: white; border: none; border-radius: 10px; font-size: 14px; font-weight: 600; cursor: pointer; box-shadow: 0 4px 12px rgba(139, 92, 246, 0.4); transition: all 0.3s ease;">
+          정답 확인
+        </button>
+      </div>
+      
+      <div id="reflection-feedback" style="margin-top: 15px; font-size: 14px; font-weight: bold; padding: 12px; border-radius: 12px; display: none;"></div>
+    </div>
+
+    <div style="text-align: center; margin-top: 30px; padding-top: 20px; border-top: 2px solid rgba(139, 92, 246, 0.2);">
+      <button onclick="completeLearning()" style="padding: 15px 50px; font-size: 1.1rem; font-weight: bold; color: white; background: linear-gradient(135deg, #8b5cf6, #6366f1); border: none; border-radius: 50px; cursor: pointer; box-shadow: 0 10px 20px rgba(139, 92, 246, 0.3); transition: transform 0.2s;">
+        원리 이해 완료! 설계하러 가기 👉
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- VIEW 5-S: 학생 메인 캔버스 -->
+<div id="view-student-main" class="view-section">
+  <div class="app-inner">
+    <!-- 상태 배너 -->
+    <div id="status-banner" class="status-banner" style="display:none;">
+      <span id="status-msg">상태 메시지</span>
+      <span id="status-label" style="background:rgba(255,255,255,0.2); padding:4px 10px; border-radius:12px; font-size:12px;"></span>
+    </div>
+
+    <div class="header">
+      <div class="header-icon">🦇</div>
+      <h1>SDGs 문제해결 설계</h1>
+      <div class="user-tag" id="user-display">학생</div>
+    </div>
+
+    <div class="scroll-area">
+      <!-- 설계 폼 전체 -->
+      <div id="design-form-container">
+        <button class="helper-btn" onclick="loadExample()" style="margin-bottom: 20px;">🎲 예시 불러오기 (따라 쓰기 금지!)</button>
+        
+        <!-- STEP 1: 문제 발견 & 목표 설정 -->
+        <div class="design-section" style="margin-bottom: 40px; padding-bottom: 30px; border-bottom: 2px solid #e2e8f0;">
+        <div class="step-header">
+          <div class="step-title">1. 문제 발견 & 목표 설정</div>
+          <div class="step-desc">어떤 불편함을 해결하고 싶나요? SDGs 목표와 연결해보세요.</div>
+        </div>
+        
+        <div class="form-group">
+          <label class="label">① 해결하고 싶은 문제</label>
+          <textarea id="inp-problem" class="text-area" placeholder="예: 복도에 사람이 없는데도 불이 켜져 있어 전기가 낭비돼요."></textarea>
+        </div>
+        <div class="form-group">
+          <label class="label">② 관련 SDGs 목표</label>
+          <select id="inp-sdg" class="select-box">
+            <option value="">목표를 선택하세요</option>
+            <option value="3">Goal 3. 건강과 웰빙</option>
+            <option value="4">Goal 4. 양질의 교육</option>
+            <option value="6">Goal 6. 깨끗한 물과 위생</option>
+            <option value="7">Goal 7. 에너지</option>
+            <option value="11">Goal 11. 지속가능한 도시</option>
+            <option value="12">Goal 12. 책임있는 소비</option>
+            <option value="13">Goal 13. 기후 행동</option>
+            <option value="14">Goal 14. 해양 생태계</option>
+            <option value="15">Goal 15. 육상 생태계</option>
+          </select>
+        </div>
+      </div>
+
+        <!-- STEP 2: 센서 감지 조건 -->
+        <div class="design-section" style="margin-bottom: 40px; padding-bottom: 30px; border-bottom: 2px solid #e2e8f0;">
+        <div class="step-header">
+          <div class="step-title">2. 센서 감지 조건 (Input)</div>
+          <div class="step-desc">초음파 센서가 '언제' 작동할지 거리를 정해주세요.</div>
+        </div>
+        <div class="sensor-tip">
+          <strong>🦇 초음파 센서 핵심:</strong> 오직 <strong>"거리(cm)"</strong>만 알 수 있습니다.<br>
+          *소리, 빛, 냄새, 물체의 종류(사람 vs 강아지)는 구별하지 못해요.
+        </div>
+        
+        <div class="form-group">
+          <label class="label">① 기준 거리 (Threshold)</label>
+          <input type="number" id="inp-dist" class="input-line" placeholder="예: 30 (단위: cm)">
+        </div>
+        <div class="form-group">
+          <label class="label">② 가까워졌을 때 (IF 거리 &lt; 기준)</label>
+          <textarea id="inp-cond-on" class="text-area" placeholder="예: 물체와의 거리가 30cm 이내가 되면"></textarea>
+        </div>
+        <div class="form-group">
+          <label class="label">③ 멀어졌을 때 (ELSE 거리 ≥ 기준)</label>
+          <textarea id="inp-cond-off" class="text-area" placeholder="예: 물체가 30cm 이상 멀어지면"></textarea>
+        </div>
+      </div>
+
+        <!-- STEP 3: 장치 반응 설계 -->
+        <div class="design-section" style="margin-bottom: 40px; padding-bottom: 30px; border-bottom: 2px solid #e2e8f0;">
+        <div class="step-header">
+          <div class="step-title">3. 장치 반응 설계 (Output)</div>
+          <div class="step-desc">조건에 따라 어떤 장치가 어떻게 움직일지 정해주세요.</div>
+        </div>
+
+        <div class="dual-cols">
+          <div class="col-card on">
+            <div class="col-header">🟢 ON (작동)</div>
+            <select id="inp-dev-on" class="select-box" style="margin-bottom:10px;">
+              <option value="led">💡 LED 켜기</option>
+              <option value="servo">🚪 서보모터 열기</option>
+              <option value="speaker">🔊 소리 켜기</option>
+              <option value="motor">🌀 모터 켜기</option>
+            </select>
+            <input type="text" id="inp-act-on" class="input-line" placeholder="상세 동작 (예: 90도 회전)">
+          </div>
+          <div class="col-card off">
+            <div class="col-header">🟠 OFF (복구)</div>
+            <select id="inp-dev-off" class="select-box" style="margin-bottom:10px;">
+              <option value="led">🌑 LED 끄기</option>
+              <option value="servo">🚪 서보모터 닫기</option>
+              <option value="speaker">🔇 소리 끄기</option>
+              <option value="motor">🛑 모터 끄기</option>
+            </select>
+            <input type="text" id="inp-act-off" class="input-line" placeholder="상세 동작 (예: 0도 복귀)">
+          </div>
+        </div>
+        <br>
+        <div class="form-group">
+          <label class="label">📝 전체 시나리오 정리</label>
+          <textarea id="inp-scenario" class="text-area" placeholder="작동 과정을 누구나 이해할 수 있게 한 문단으로 정리해주세요."></textarea>
+        </div>
+      </div>
+
+        <!-- 제출 섹션 -->
+        <div class="design-section" style="margin-bottom: 20px;">
+        <div class="step-header">
+          <div class="step-title">4. AI 검사 및 최종 제출</div>
+          <div class="step-desc">내용을 점검하고 선생님께 제출합니다.</div>
+        </div>
+
+          <div class="sensor-tip" style="background:rgba(254, 243, 199, 0.6); border-color:#f59e0b; color:#92400e;">
+          <strong>🚨 제출 전 필수 체크!</strong><br>
+            1. 먼저 '검사' 버튼을 눌러 내용을 확인하세요.<br>
+            2. 예시를 그대로 베끼면 <strong>표절</strong>로 처리되어 제출 불가합니다.<br>
+            3. 내용이 너무 짧거나 부실하면 <strong>검사에서 반려</strong>됩니다.<br>
+            4. 검사 통과 후 '제출' 버튼을 눌러 제출하고, <strong>선생님의 승인</strong>을 받아야 완료됩니다.
+        </div>
+
+        <div class="chat-box" id="chat-box">
+            <div class="chat-bubble chat-ai">안녕! 나는 너의 설계를 도와줄 AI 코치야. 먼저 '검사' 버튼으로 내용을 확인한 후, 문제가 없으면 '제출' 버튼을 눌러줘. 🤖</div>
+        </div>
+      </div>
+      </div>
+    </div>
+
+    <div class="bottom-nav">
+      <button class="nav-btn btn-check" id="btn-check" onclick="checkAssignment()">🔍 검사</button>
+      <button class="nav-btn btn-submit" id="btn-submit" onclick="submitAssignment()" style="opacity:0.5; cursor:not-allowed;" disabled>✅ 제출</button>
+    </div>
+  </div>
+</div>
+
+<script type="module" src="/env-config.js"></script>
+<script>
+  /* =========================================
+     GLOBAL VARIABLES
+     ========================================= */
+  let currentUser = { id: '', name: '' };
+  let lastLoadedExample = null; // 표절 검사용
+  let isChecked = false; // 검사 통과 여부
+  const TEACHER_PW = "1234"; // 교사 비밀번호
+
+  /* =========================================
+     API 키 가져오기 (localStorage → 환경 변수 순서)
+     ========================================= */
+  function getApiKey() {
+    // 1. localStorage에서 먼저 확인 (교사가 설정한 값 우선)
+    const storedKey = localStorage.getItem('openai_api_key');
+    if(storedKey) return storedKey;
+    
+    // 2. 환경 변수에서 확인 (Vite 환경 변수)
+    if(typeof window !== 'undefined' && window.VITE_OPENAI_API_KEY) {
+      // 환경 변수 값을 localStorage에 저장 (다음에 빠르게 접근)
+      localStorage.setItem('openai_api_key', window.VITE_OPENAI_API_KEY);
+      return window.VITE_OPENAI_API_KEY;
+    }
+    
+    return null;
+  }
+
+  /* =========================================
+     VIEW NAVIGATION
+     ========================================= */
+  function showView(viewId) {
+    document.querySelectorAll('.view-section').forEach(el => el.classList.remove('active'));
+    document.getElementById(viewId).classList.add('active');
+    
+    // 상단 네비게이션 바 표시/숨김 제어
+    const topNav = document.getElementById('top-nav');
+    if(viewId === 'view-intro') {
+      topNav.classList.add('hidden');
+      document.body.style.paddingTop = '20px';
+    } else {
+      topNav.classList.remove('hidden');
+      document.body.style.paddingTop = '60px';
+    }
+    
+    // 학습 페이지로 이동 시 시뮬레이션 초기화 및 퀴즈 상태 초기화
+    if(viewId === 'view-student-learning') {
+      setTimeout(() => {
+        initSimulation();
+        quizAnswered = false; // 퀴즈 상태 초기화
+        const feedback = document.getElementById('quiz-feedback');
+        if(feedback) {
+          feedback.style.display = 'none';
+        }
+        // 배운 점 정리 피드백 초기화
+        const reflectionFeedback = document.getElementById('reflection-feedback');
+        if(reflectionFeedback) {
+          reflectionFeedback.style.display = 'none';
+        }
+        // 드래그 앤 드롭 초기화
+        setTimeout(() => {
+          resetDragDrop();
+          initDragDrop();
+        }, 100);
+        // 모든 퀴즈 버튼 상태 초기화
+        document.querySelectorAll('.quiz-option-btn').forEach(btn => {
+          btn.classList.remove('correct', 'wrong');
+        });
+        
+        // 학습 완료 여부 확인하여 배지 표시
+        if(currentUser && currentUser.id && currentUser.name) {
+          const completed = checkLearningCompleted(currentUser.id, currentUser.name);
+          const badge = document.getElementById('learning-completed-badge');
+          if(badge) {
+            badge.style.display = completed ? 'block' : 'none';
+          }
+        }
+      }, 100);
+    }
+  }
+
+  function showIntro() { showView('view-intro'); }
+  function goToStudentLogin() { showView('view-student-login'); }
+  function goToTeacherLogin() { 
+    document.getElementById('tea-pw').value = ''; 
+    showView('view-teacher-login'); 
+  }
+
+  /* =========================================
+     STUDENT LOGIC
+     ========================================= */
+  function studentLogin() {
+    const id = document.getElementById('std-id').value.trim();
+    const name = document.getElementById('std-name').value.trim();
+    if(!id || !name) { alert('학번과 이름을 모두 입력해주세요.'); return; }
+
+    currentUser = { id, name };
+    document.getElementById('user-display').textContent = `${id} ${name}`;
+    document.getElementById('learning-user-display').textContent = `${id} ${name}`;
+    
+    // 학번 기반으로 자동으로 학급에 배정
+    assignStudentToClassById(id, name);
+    
+    // 학습 완료 여부 확인
+    const learningCompleted = checkLearningCompleted(id, name);
+    
+    // 피드백 알림 확인
+    checkFeedbackNotification(id, name);
+    
+    if(learningCompleted) {
+      // 이미 학습을 완료했다면 바로 아이디어 설계 페이지로 이동
+      loadMySubmission();
+      showView('view-student-main');
+    } else {
+      // 학습을 완료하지 않았다면 학습 페이지로 이동
+      showView('view-student-learning');
+      initSimulation();
+    }
+  }
+  
+  function checkLearningCompleted(id, name) {
+    // localStorage에서 학습 완료 상태 확인
+    const completedKey = `learning_completed_${id}_${name}`;
+    return localStorage.getItem(completedKey) === 'true';
+  }
+  
+  function setLearningCompleted(id, name) {
+    // localStorage에 학습 완료 상태 저장
+    const completedKey = `learning_completed_${id}_${name}`;
+    localStorage.setItem(completedKey, 'true');
+  }
+  
+  // 아이디어 설계 페이지로 이동
+  function goToDesignPage() {
+    if(currentUser && currentUser.id && currentUser.name) {
+      loadMySubmission();
+      showView('view-student-main');
+    } else {
+      alert('로그인이 필요합니다.');
+      showView('view-student-login');
+    }
+  }
+  
+  // 피드백 알림 확인 및 표시
+  function checkFeedbackNotification(id, name) {
+    const allSubmissions = JSON.parse(localStorage.getItem('student_submissions') || '[]');
+    const mySub = allSubmissions.find(s => s.id === id && s.name === name);
+    
+    if(!mySub) return;
+    
+    // 피드백이 있고 아직 확인하지 않은 경우
+    const notificationKey = `feedback_notified_${id}_${name}_${mySub.timestamp}`;
+    const alreadyNotified = localStorage.getItem(notificationKey) === 'true';
+    
+    if((mySub.status === 'rejected' || mySub.status === 'approved') && mySub.teacherFeedback && !alreadyNotified) {
+      // 알림 표시
+      showFeedbackNotification(mySub);
+      // 알림 확인 플래그 저장
+      localStorage.setItem(notificationKey, 'true');
+    }
+  }
+  
+  // 피드백 알림 모달 표시
+  function showFeedbackNotification(submission) {
+    const isRejected = submission.status === 'rejected';
+    const modal = document.createElement('div');
+    modal.id = 'feedback-notification-modal';
+    modal.style.cssText = `
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.5);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      z-index: 10000;
+      animation: fadeIn 0.3s;
+    `;
+    
+    modal.innerHTML = `
+      <div style="
+        background: white;
+        border-radius: 20px;
+        padding: 30px;
+        max-width: 500px;
+        width: 90%;
+        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+        animation: popIn 0.3s;
+      ">
+        <div style="text-align: center; margin-bottom: 20px;">
+          <div style="font-size: 48px; margin-bottom: 10px;">
+            ${isRejected ? '⚠️' : '🎉'}
+          </div>
+          <h2 style="font-size: 24px; font-weight: 800; color: #1e293b; margin-bottom: 10px;">
+            ${isRejected ? '피드백을 받았습니다' : '과제가 승인되었습니다!'}
+          </h2>
+          <p style="font-size: 14px; color: #64748b;">
+            ${isRejected ? '선생님께서 피드백을 남겨주셨습니다. 확인 후 수정하여 재제출해주세요.' : '축하합니다! 선생님께서 과제를 승인하셨습니다.'}
+          </p>
+        </div>
+        
+        <div style="
+          background: ${isRejected ? 'rgba(254, 242, 242, 0.5)' : 'rgba(237, 233, 254, 0.5)'};
+          border: 2px solid ${isRejected ? '#ef4444' : '#8b5cf6'};
+          border-radius: 12px;
+          padding: 20px;
+          margin-bottom: 20px;
+          max-height: 300px;
+          overflow-y: auto;
+        ">
+          <div style="font-size: 13px; font-weight: 700; color: ${isRejected ? '#991b1b' : '#6d28d9'}; margin-bottom: 10px;">
+            📝 선생님 피드백:
+          </div>
+          <div style="font-size: 14px; color: #475569; line-height: 1.6; white-space: pre-wrap;">
+            ${submission.teacherFeedback || '피드백이 없습니다.'}
+          </div>
+        </div>
+        
+        <div style="display: flex; gap: 10px;">
+          <button onclick="closeFeedbackNotification()" style="
+            flex: 1;
+            padding: 12px;
+            background: #f1f5f9;
+            color: #475569;
+            border: none;
+            border-radius: 10px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+          ">나중에 보기</button>
+          <button onclick="goToDesignPageFromNotification()" style="
+            flex: 1;
+            padding: 12px;
+            background: linear-gradient(135deg, #8b5cf6, #6366f1);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            box-shadow: 0 4px 6px rgba(139, 92, 246, 0.3);
+            transition: all 0.2s;
+          ">${isRejected ? '수정하러 가기' : '확인하기'}</button>
+        </div>
+      </div>
+    `;
+    
+    document.body.appendChild(modal);
+    
+    // 모달 외부 클릭 시 닫기
+    modal.addEventListener('click', function(e) {
+      if(e.target === modal) {
+        closeFeedbackNotification();
+      }
+    });
+  }
+  
+  function closeFeedbackNotification() {
+    const modal = document.getElementById('feedback-notification-modal');
+    if(modal) {
+      modal.remove();
+    }
+  }
+  
+  function goToDesignPageFromNotification() {
+    closeFeedbackNotification();
+    goToDesignPage();
+  }
+  
+  // 재제출 안내 카드 표시
+  function showResubmissionGuide(feedback) {
+    // 기존 안내 카드가 있으면 제거
+    const existingGuide = document.getElementById('resubmission-guide');
+    if(existingGuide) {
+      existingGuide.remove();
+    }
+    
+    const designContainer = document.getElementById('design-form-container');
+    if(!designContainer) return;
+    
+    const guide = document.createElement('div');
+    guide.id = 'resubmission-guide';
+    guide.style.cssText = `
+      background: linear-gradient(135deg, #fef2f2, #fee2e2);
+      border: 2px solid #ef4444;
+      border-radius: 16px;
+      padding: 20px;
+      margin-bottom: 30px;
+      animation: popIn 0.3s;
+    `;
+    
+    guide.innerHTML = `
+      <div style="display: flex; align-items: flex-start; gap: 15px;">
+        <div style="font-size: 32px;">⚠️</div>
+        <div style="flex: 1;">
+          <h3 style="font-size: 18px; font-weight: 800; color: #991b1b; margin-bottom: 10px;">
+            피드백을 받았습니다 - 수정 후 재제출해주세요
+          </h3>
+          <div style="
+            background: white;
+            border: 1px solid #fecaca;
+            border-radius: 10px;
+            padding: 15px;
+            margin-bottom: 15px;
+            max-height: 200px;
+            overflow-y: auto;
+          ">
+            <div style="font-size: 13px; font-weight: 700; color: #991b1b; margin-bottom: 8px;">
+              📝 선생님 피드백:
+            </div>
+            <div style="font-size: 14px; color: #475569; line-height: 1.6; white-space: pre-wrap;">
+              ${feedback || '피드백이 없습니다.'}
+            </div>
+          </div>
+          <div style="
+            background: rgba(239, 68, 68, 0.1);
+            border-left: 4px solid #ef4444;
+            padding: 12px;
+            border-radius: 6px;
+            font-size: 13px;
+            color: #991b1b;
+            line-height: 1.5;
+          ">
+            💡 <strong>안내:</strong> 위 피드백을 참고하여 내용을 수정한 후, 다시 "검사" 버튼을 눌러 검증하고 "제출" 버튼으로 재제출해주세요.
+          </div>
+        </div>
+      </div>
+    `;
+    
+    // 설계 폼 컨테이너의 맨 위에 삽입
+    designContainer.insertBefore(guide, designContainer.firstChild);
+  }
+  
+  // 피드백 알림 확인 및 표시
+  function checkFeedbackNotification(id, name) {
+    const allSubmissions = JSON.parse(localStorage.getItem('student_submissions') || '[]');
+    const mySub = allSubmissions.find(s => s.id === id && s.name === name);
+    
+    if(!mySub) return;
+    
+    // 피드백이 있고 아직 확인하지 않은 경우
+    const notificationKey = `feedback_notified_${id}_${name}_${mySub.timestamp}`;
+    const alreadyNotified = localStorage.getItem(notificationKey) === 'true';
+    
+    if((mySub.status === 'rejected' || mySub.status === 'approved') && mySub.teacherFeedback && !alreadyNotified) {
+      // 알림 표시
+      showFeedbackNotification(mySub);
+      // 알림 확인 플래그 저장
+      localStorage.setItem(notificationKey, 'true');
+    }
+  }
+  
+  // 피드백 알림 모달 표시
+  function showFeedbackNotification(submission) {
+    const isRejected = submission.status === 'rejected';
+    const modal = document.createElement('div');
+    modal.id = 'feedback-notification-modal';
+    modal.style.cssText = `
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.5);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      z-index: 10000;
+      animation: fadeIn 0.3s;
+    `;
+    
+    modal.innerHTML = `
+      <div style="
+        background: white;
+        border-radius: 20px;
+        padding: 30px;
+        max-width: 500px;
+        width: 90%;
+        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+        animation: popIn 0.3s;
+      ">
+        <div style="text-align: center; margin-bottom: 20px;">
+          <div style="font-size: 48px; margin-bottom: 10px;">
+            ${isRejected ? '⚠️' : '🎉'}
+          </div>
+          <h2 style="font-size: 24px; font-weight: 800; color: #1e293b; margin-bottom: 10px;">
+            ${isRejected ? '피드백을 받았습니다' : '과제가 승인되었습니다!'}
+          </h2>
+          <p style="font-size: 14px; color: #64748b;">
+            ${isRejected ? '선생님께서 피드백을 남겨주셨습니다. 확인 후 수정하여 재제출해주세요.' : '축하합니다! 선생님께서 과제를 승인하셨습니다.'}
+          </p>
+        </div>
+        
+        <div style="
+          background: ${isRejected ? 'rgba(254, 242, 242, 0.5)' : 'rgba(237, 233, 254, 0.5)'};
+          border: 2px solid ${isRejected ? '#ef4444' : '#8b5cf6'};
+          border-radius: 12px;
+          padding: 20px;
+          margin-bottom: 20px;
+          max-height: 300px;
+          overflow-y: auto;
+        ">
+          <div style="font-size: 13px; font-weight: 700; color: ${isRejected ? '#991b1b' : '#6d28d9'}; margin-bottom: 10px;">
+            📝 선생님 피드백:
+          </div>
+          <div style="font-size: 14px; color: #475569; line-height: 1.6; white-space: pre-wrap;">
+            ${submission.teacherFeedback || '피드백이 없습니다.'}
+          </div>
+        </div>
+        
+        <div style="display: flex; gap: 10px;">
+          <button onclick="closeFeedbackNotification()" style="
+            flex: 1;
+            padding: 12px;
+            background: #f1f5f9;
+            color: #475569;
+            border: none;
+            border-radius: 10px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+          ">나중에 보기</button>
+          <button onclick="goToDesignPageFromNotification()" style="
+            flex: 1;
+            padding: 12px;
+            background: linear-gradient(135deg, #8b5cf6, #6366f1);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            box-shadow: 0 4px 6px rgba(139, 92, 246, 0.3);
+            transition: all 0.2s;
+          ">${isRejected ? '수정하러 가기' : '확인하기'}</button>
+        </div>
+      </div>
+    `;
+    
+    document.body.appendChild(modal);
+    
+    // 모달 외부 클릭 시 닫기
+    modal.addEventListener('click', function(e) {
+      if(e.target === modal) {
+        closeFeedbackNotification();
+      }
+    });
+  }
+  
+  function closeFeedbackNotification() {
+    const modal = document.getElementById('feedback-notification-modal');
+    if(modal) {
+      modal.remove();
+    }
+  }
+  
+  function goToDesignPageFromNotification() {
+    closeFeedbackNotification();
+    goToDesignPage();
+  }
+
+  // 스텝 전환 함수 제거 (한 페이지로 통합됨)
+
+  // 예시 불러오기
+  function loadExample() {
+    const ex = {
+      problem: "학교 화장실에서 물을 사용한 후 수도꼭지를 완전히 잠그지 않아 물이 계속 새어나가고, 특히 어린 학생들이 자주 깜빡 잊어버려 물 낭비가 심각합니다. 또한 사용 중인지 여부를 다른 사람이 알 수 없어 불편하기도 합니다.",
+      sdg: "6",
+      dist: "30",
+      cond_on: "초음파 센서가 30cm 이내의 물체(사람)를 감지하면",
+      cond_off: "물체가 30cm 이상 멀어지거나 5분 이상 같은 위치에 없으면",
+      dev_on: "servo", act_on: "서보모터로 수도꼭지를 자동으로 잠그고, LED로 '사용 중' 표시",
+      dev_off: "servo", act_off: "서보모터로 수도꼭지를 다시 열고, LED 끄기",
+      scenario: "화장실 입구에 초음파 센서를 설치하고, 사람이 30cm 안으로 들어오면 서보모터가 수도꼭지를 자동으로 열고 '사용 중' LED를 켭니다. 사용자가 30cm 이상 멀어지거나 5분 이상 움직임이 없으면 자동으로 수도꼭지를 잠가 물 낭비를 방지합니다. 이를 통해 Goal 6 '깨끗한 물과 위생' 달성에 기여합니다."
+    };
+
+    document.getElementById('inp-problem').value = ex.problem;
+    document.getElementById('inp-sdg').value = ex.sdg;
+    document.getElementById('inp-dist').value = ex.dist;
+    document.getElementById('inp-cond-on').value = ex.cond_on;
+    document.getElementById('inp-cond-off').value = ex.cond_off;
+    document.getElementById('inp-dev-on').value = ex.dev_on;
+    document.getElementById('inp-act-on').value = ex.act_on;
+    document.getElementById('inp-dev-off').value = ex.dev_off;
+    document.getElementById('inp-act-off').value = ex.act_off;
+    document.getElementById('inp-scenario').value = ex.scenario;
+
+    lastLoadedExample = ex; // 표절 검사용 저장
+    alert("예시를 불러왔습니다. 내용을 반드시 수정해서 제출하세요!");
+  }
+
+  // 표절 검사
+  function checkPlagiarism() {
+    if(!lastLoadedExample) return false;
+    const currProb = document.getElementById('inp-problem').value.trim();
+    const currScen = document.getElementById('inp-scenario').value.trim();
+    return (currProb === lastLoadedExample.problem || currScen === lastLoadedExample.scenario);
+  }
+
+  // 채팅 메시지 추가
+  function addChat(msg, type='ai') {
+    const box = document.getElementById('chat-box');
+    box.style.display = 'flex';
+    const bubble = document.createElement('div');
+    bubble.className = `chat-bubble chat-${type}`;
+    bubble.innerHTML = msg;
+    box.appendChild(bubble);
+    box.scrollTop = box.scrollHeight;
+  }
+
+  // 상세 검사 및 피드백 제공
+  function checkAssignment() {
+    const box = document.getElementById('chat-box');
+    box.style.display = 'flex';
+    box.innerHTML = ''; // 초기화
+    
+    addChat("📄 내용을 분석 중입니다...", "ai");
+
+    setTimeout(async () => {
+      isChecked = false; // 초기화
+      
+      // 1. 표절 검사
+      if(checkPlagiarism()) {
+        addChat("🚨 <strong>[검사 실패] 표절이 의심됩니다.</strong><br>예시 내용을 그대로 사용하지 말고, 본인의 생각으로 수정해주세요.", "warn");
+        addChat("내용을 수정한 후 다시 검사해주세요.", "warn");
+        disableSubmitButton();
+        return;
+      }
+
+      // 2. 기본 검증
+      const prob = document.getElementById('inp-problem').value.trim();
+      const scen = document.getElementById('inp-scenario').value.trim();
+      const sdg = document.getElementById('inp-sdg').value;
+      const dist = document.getElementById('inp-dist').value.trim();
+      const condOn = document.getElementById('inp-cond-on').value.trim();
+      const condOff = document.getElementById('inp-cond-off').value.trim();
+      const devOn = document.getElementById('inp-dev-on').value;
+      const actOn = document.getElementById('inp-act-on').value.trim();
+      const devOff = document.getElementById('inp-dev-off').value;
+      const actOff = document.getElementById('inp-act-off').value.trim();
+
+      let warnings = [];
+      let suggestions = [];
+      
+      // 문제 정의 검증
+      if(prob.length < 30) {
+        warnings.push("문제 정의가 너무 짧습니다. 구체적인 상황과 문제점을 더 자세히 설명해주세요.");
+      }
+      if(!prob.includes('문제') && !prob.includes('불편') && !prob.includes('낭비') && !prob.includes('위험')) {
+        suggestions.push("문제 상황을 더 명확하게 드러내는 표현을 사용해보세요 (예: '문제', '불편', '낭비', '위험' 등).");
+      }
+      
+      // SDG 관련성 검증
+      if(!sdg) {
+        warnings.push("SDGs 목표를 선택해주세요. 해결하고자 하는 문제와 가장 관련이 깊은 목표를 선택하세요.");
+      }
+      
+      // 거리 기준 검증
+      if(!dist || isNaN(dist) || dist < 5 || dist > 500) {
+        warnings.push("거리 기준을 5cm~500cm 사이의 합리적인 값으로 설정해주세요.");
+      } else {
+        const distNum = parseInt(dist);
+        if(distNum < 10) {
+          suggestions.push("거리 기준이 너무 작습니다. 10cm 이상이면 더 안정적으로 작동할 수 있습니다.");
+        } else if(distNum > 200) {
+          suggestions.push("거리 기준이 너무 큽니다. 실제 환경을 고려하여 조정해보세요.");
+        }
+      }
+      
+      // 조건 명확성 검증
+      if(condOn.length < 10 || condOff.length < 10) {
+        warnings.push("센서 감지 조건을 더 구체적으로 설명해주세요. (예: '30cm 안으로 들어오면', '30cm 이상 멀어지면')");
+      }
+      if(!condOn.includes(dist) || !condOff.includes(dist)) {
+        suggestions.push("감지 조건에 설정한 거리 기준(" + dist + "cm)을 명확히 포함해주세요.");
+      }
+      
+      // 장치 일관성 검증
+      if(devOn !== devOff) {
+        warnings.push("ON/OFF 장치가 다릅니다. 같은 장치를 제어해야 합니다 (예: LED 켜기/끄기).");
+      }
+      
+      // 동작 구체성 검증
+      if(actOn.length < 5 || actOff.length < 5) {
+        warnings.push("장치 동작을 더 구체적으로 설명해주세요. (예: '조명 켜기', '90도 회전')");
+      }
+      
+      // 시나리오 충실도
+      if(scen.length < 50) {
+        warnings.push("시나리오를 더 구체적으로 작성해주세요. (최소 50자 이상 권장)");
+      }
+      if(!scen.includes(prob.substring(0, 10))) {
+        suggestions.push("시나리오에 제시한 문제와의 연결고리를 더 명확히 해주세요.");
+      }
+      
+      // SDGs 관련성 확인
+      if(sdg && scen.length > 0) {
+        const sdgNames = {
+          '3': '건강', '4': '교육', '6': '물', '7': '에너지',
+          '11': '도시', '12': '소비', '13': '기후', '14': '해양', '15': '육상'
+        };
+        const sdgName = sdgNames[sdg];
+        if(sdgName && !scen.includes(sdgName) && !scen.includes('SDG') && !scen.includes('목표')) {
+          suggestions.push("시나리오에 선택한 SDGs 목표(" + sdgNames[sdg] + ")와의 연관성을 더 명확히 설명해주세요.");
+        }
+      }
+
+      // 실현 가능성 체크
+      if(condOn.includes('사람') || condOn.includes('강아지') || condOn.includes('고양이')) {
+        suggestions.push("💡 초음파 센서는 물체 종류를 구별하지 못합니다. '물체', '장애물' 등으로 표현하는 것이 더 정확합니다.");
+      }
+      
+      if(condOn.includes('소리') || condOn.includes('냄새') || condOn.includes('빛')) {
+        warnings.push("⚠️ 초음파 센서는 거리만 측정 가능합니다. 소리, 냄새, 빛 등은 감지하지 못합니다.");
+      }
+
+      // 피드백 제공
+      if(warnings.length > 0) {
+        addChat("⚠️ <strong>[검사 결과] 수정이 필요한 부분이 있습니다.</strong>", "warn");
+        warnings.forEach(w => addChat("❌ " + w, "warn"));
+        if(suggestions.length > 0) {
+          addChat("<br><strong>💡 개선 제안:</strong>", "ai");
+          suggestions.forEach(s => addChat("• " + s, "ai"));
+        }
+        addChat("<br>위 내용을 보완한 후 다시 검사해주세요.", "warn");
+        disableSubmitButton();
+        return;
+      }
+
+      // 성공 피드백 + 제안사항
+      addChat("✅ <strong>[기본 검증 통과]</strong> 필수 항목이 모두 충족되었습니다!", "success");
+      
+      if(suggestions.length > 0) {
+        addChat("<br><strong>💡 추가 개선 제안:</strong>", "ai");
+        suggestions.forEach(s => addChat("• " + s, "ai"));
+        addChat("<br>위 제안을 반영하면 더 완성도 높은 설계가 됩니다. (선택사항)", "ai");
+      }
+      
+      // SDGs 관련성 강조
+      if(sdg) {
+        const sdgText = document.getElementById('inp-sdg').options[document.getElementById('inp-sdg').selectedIndex].text;
+        addChat("<br>🎯 <strong>SDGs 관련성:</strong> " + sdgText + " 달성에 기여하는 좋은 설계입니다!", "success");
+      }
+      
+      addChat("<br>이제 '제출' 버튼을 눌러 선생님께 제출할 수 있습니다.", "success");
+      
+      isChecked = true;
+      enableSubmitButton();
+
+    }, 1500);
+  }
+
+  // 제출 로직 (검사 통과 후에만 실행)
+  function submitAssignment() {
+    if(!isChecked) {
+      alert("먼저 '검사' 버튼을 눌러 검사를 통과해야 제출할 수 있습니다.");
+      return;
+    }
+
+    const box = document.getElementById('chat-box');
+    box.style.display = 'flex';
+    
+    addChat("📤 제출 중입니다...", "ai");
+
+    setTimeout(() => {
+      const prob = document.getElementById('inp-problem').value.trim();
+      const scen = document.getElementById('inp-scenario').value.trim();
+
+      // 제출 데이터 저장
+      const submission = {
+        id: currentUser.id,
+        name: currentUser.name,
+        timestamp: new Date().toISOString(),
+        problem: prob,
+        sdg: document.getElementById('inp-sdg').options[document.getElementById('inp-sdg').selectedIndex].text,
+        scenario: scen,
+        status: 'pending', // 대기중
+        teacherFeedback: ''
+      };
+
+      // 기존 데이터 로드 및 갱신
+      let allData = JSON.parse(localStorage.getItem('student_submissions') || '[]');
+      const idx = allData.findIndex(d => d.id === currentUser.id && d.name === currentUser.name);
+      if(idx >= 0) allData[idx] = submission;
+      else allData.push(submission);
+      
+      localStorage.setItem('student_submissions', JSON.stringify(allData));
+      
+      // 학년/반 추출하여 자동으로 학급에 배정
+      assignStudentToClassById(currentUser.id, currentUser.name);
+
+      addChat("✅ <strong>제출 성공!</strong> 선생님께 전송되었습니다.", "success");
+      addChat("선생님의 승인을 기다려주세요.", "success");
+      
+      loadMySubmission(); // 상태 배너 갱신
+
+      // 제출 버튼 다시 비활성화
+      isChecked = false;
+      disableSubmitButton();
+
+    }, 500);
+  }
+
+  // 제출 버튼 활성화/비활성화 함수
+  function enableSubmitButton() {
+    const btnSubmit = document.getElementById('btn-submit');
+    btnSubmit.disabled = false;
+    btnSubmit.style.opacity = '1';
+    btnSubmit.style.cursor = 'pointer';
+  }
+
+  function disableSubmitButton() {
+    const btnSubmit = document.getElementById('btn-submit');
+    btnSubmit.disabled = true;
+    btnSubmit.style.opacity = '0.5';
+    btnSubmit.style.cursor = 'not-allowed';
+  }
+
+  // 내 제출 상태 확인 및 UI 잠금
+  function loadMySubmission() {
+    const allData = JSON.parse(localStorage.getItem('student_submissions') || '[]');
+    const mySub = allData.find(d => d.id === currentUser.id && d.name === currentUser.name);
+    
+    const banner = document.getElementById('status-banner');
+    const statusMsg = document.getElementById('status-msg');
+    const statusLabel = document.getElementById('status-label');
+    
+    // 초기화
+    banner.style.display = 'none';
+    toggleInputs(true); // 입력 가능
+
+    if(mySub) {
+      banner.style.display = 'flex';
+      banner.className = `status-banner ${mySub.status}`;
+      
+      // 필드 값 복구 (재로그인 시)
+      document.getElementById('inp-problem').value = mySub.problem;
+      document.getElementById('inp-scenario').value = mySub.scenario;
+      // ...나머지 필드는 생략
+
+      if(mySub.status === 'pending') {
+        statusMsg.innerHTML = "⏳ <strong>선생님 확인 대기 중입니다.</strong> (수정 불가)";
+        statusLabel.textContent = "검토중";
+        toggleInputs(false); // 잠금
+      } else if(mySub.status === 'approved') {
+        statusMsg.innerHTML = `🎉 <strong>과제 승인 완료!</strong> (피드백: ${mySub.teacherFeedback || '없음'})`;
+        statusLabel.textContent = "완료";
+        toggleInputs(false); // 잠금
+      } else if(mySub.status === 'rejected') {
+        statusMsg.innerHTML = `⚠️ <strong>반려되었습니다. 수정 후 재제출하세요.</strong> (사유: ${mySub.teacherFeedback})`;
+        statusLabel.textContent = "수정요망";
+        toggleInputs(true); // 잠금 해제
+        
+        // 재제출 안내 카드 표시
+        showResubmissionGuide(mySub.teacherFeedback);
+      }
+    }
+  }
+
+  function toggleInputs(enable) {
+    const inputs = document.querySelectorAll('input, textarea, select, #btn-check, #btn-submit');
+    inputs.forEach(el => {
+      if(el.id === 'btn-submit' && !enable) {
+        // 입력 잠금 시 제출 버튼도 잠금
+        el.disabled = true;
+        el.style.opacity = '0.5';
+        el.style.cursor = 'not-allowed';
+      } else {
+        el.disabled = !enable;
+      }
+    });
+    if(!enable) {
+      isChecked = false; // 입력 잠금 시 검사 상태도 초기화
+    }
+  }
+
+  /* =========================================
+     TEACHER LOGIC
+     ========================================= */
+  function teacherLogin() {
+    const pw = document.getElementById('tea-pw').value;
+    if(pw === TEACHER_PW) {
+      showDashboard();
+    } else {
+      alert('비밀번호가 틀렸습니다.');
+    }
+  }
+
+  function showDashboard() {
+    showView('view-teacher-dashboard');
+    renderTeacherDashboard();
+  }
+  
+  // 교사 대시보드 렌더링 (새로운 구조)
+  function renderTeacherDashboard() {
+    // 모든 제출된 학생들을 학번 기반으로 자동으로 학급에 배정
+    organizeStudentsByClass();
+    
+    // 기본적으로 학급별 관리 탭 표시
+    switchTeacherTab('class');
+  }
+  
+  // 모든 제출된 학생들을 학번 기반으로 학급별로 자동 정리
+  function organizeStudentsByClass() {
+    const allSubmissions = JSON.parse(localStorage.getItem('student_submissions') || '[]');
+    let classes = JSON.parse(localStorage.getItem('teacher_classes') || '[]');
+    
+    // 모든 학생의 올바른 학급 정보 수집
+    const studentClassMap = new Map();
+    allSubmissions.forEach(sub => {
+      const classInfo = extractGradeAndClass(sub.id);
+      if(!classInfo) return; // 학번 형식이 맞지 않으면 건너뜀
+      
+      const studentKey = `${sub.id}|${sub.name}`;
+      studentClassMap.set(studentKey, classInfo.className);
+    });
+    
+    // 모든 학급에서 학생 정리
+    classes = classes.map(classItem => {
+      if(!classItem.students) return classItem;
+      
+      // "전체" 학급은 모든 학생 유지
+      if(classItem.id === 'class_all') {
+        return classItem;
+      }
+      
+      // 일반 학급: 올바른 학생만 유지
+      classItem.students = classItem.students.filter(studentKey => {
+        const correctClass = studentClassMap.get(studentKey);
+        // 학번 기반으로 추출한 학급 이름이 현재 학급 이름과 일치하는 학생만 유지
+        return correctClass === classItem.name;
+      });
+      
+      return classItem;
+    });
+    
+    // 모든 학생을 올바른 학급에 배정
+    studentClassMap.forEach((correctClassName, studentKey) => {
+      // 올바른 학급 찾기 또는 생성
+      let targetClass = classes.find(c => c.name === correctClassName);
+      if(!targetClass) {
+        const [id, name] = studentKey.split('|');
+        const classInfo = extractGradeAndClass(id);
+        if(classInfo) {
+          targetClass = {
+            id: 'class_' + classInfo.grade + '_' + classInfo.classNum,
+            name: correctClassName,
+            students: []
+          };
+          classes.push(targetClass);
+        }
+      }
+      
+      // 학생이 올바른 학급에 없으면 추가
+      if(targetClass && !targetClass.students.includes(studentKey)) {
+        targetClass.students.push(studentKey);
+      }
+    });
+    
+    localStorage.setItem('teacher_classes', JSON.stringify(classes));
+  }
+  
+  // 탭 전환
+  function switchTeacherTab(tabType) {
+    const classView = document.getElementById('class-management-view');
+    const studentView = document.getElementById('student-management-view');
+    const tabs = document.querySelectorAll('.teacher-tab');
+    
+    tabs.forEach(tab => tab.classList.remove('active'));
+    
+    if(tabType === 'class') {
+      classView.style.display = 'flex';
+      studentView.style.display = 'none';
+      tabs[0].classList.add('active');
+      renderClassManagement();
+    } else {
+      classView.style.display = 'none';
+      studentView.style.display = 'flex';
+      tabs[1].classList.add('active');
+      renderStudentManagement();
+    }
+  }
+  
+  // 학급별 관리 렌더링
+  function renderClassManagement() {
+    // 기본 "전체" 학급이 없으면 생성
+    ensureDefaultClass();
+    renderClassList();
+    // 기본 선택된 학급이 없으면 "전체" 학급 선택
+    const selectedClass = localStorage.getItem('selected_class');
+    if(selectedClass) {
+      selectClass(selectedClass);
+    } else {
+      const classes = JSON.parse(localStorage.getItem('teacher_classes') || '[]');
+      const defaultClass = classes.find(c => c.id === 'class_all');
+      if(defaultClass) {
+        selectClass('class_all');
+      } else {
+        document.getElementById('student-list-container').innerHTML = '<div class="empty-state"><div class="empty-state-icon">📚</div><div>학급을 선택하세요</div></div>';
+        document.getElementById('student-worksheet-container').innerHTML = '<div class="empty-state"><div class="empty-state-icon">👆</div><div>학생을 선택하세요</div></div>';
+      }
+    }
+  }
+  
+  // 기본 "전체" 학급 생성
+  function ensureDefaultClass() {
+    let classes = JSON.parse(localStorage.getItem('teacher_classes') || '[]');
+    const defaultClassExists = classes.find(c => c.id === 'class_all');
+    
+    if(!defaultClassExists) {
+      // 제출된 모든 학생을 "전체" 학급에 추가
+      const allSubmissions = JSON.parse(localStorage.getItem('student_submissions') || '[]');
+      const allStudents = [...new Set(allSubmissions.map(s => `${s.id}|${s.name}`))];
+      
+      classes.unshift({
+        id: 'class_all',
+        name: '전체',
+        students: allStudents
+      });
+      localStorage.setItem('teacher_classes', JSON.stringify(classes));
+    } else {
+      // 기존 "전체" 학급에 새로 제출된 학생 추가
+      const allSubmissions = JSON.parse(localStorage.getItem('student_submissions') || '[]');
+      const allStudents = [...new Set(allSubmissions.map(s => `${s.id}|${s.name}`))];
+      const existingStudents = new Set(defaultClassExists.students || []);
+      
+      allStudents.forEach(studentKey => {
+        if(!existingStudents.has(studentKey)) {
+          defaultClassExists.students.push(studentKey);
+        }
+      });
+      
+      classes = classes.map(c => c.id === 'class_all' ? defaultClassExists : c);
+      localStorage.setItem('teacher_classes', JSON.stringify(classes));
+    }
+  }
+  
+  // 학급 목록 렌더링
+  function renderClassList() {
+    let classes = JSON.parse(localStorage.getItem('teacher_classes') || '[]');
+    const container = document.getElementById('class-list-container');
+    
+    if(classes.length === 0) {
+      container.innerHTML = '<div class="empty-state" style="padding:20px; font-size:12px; color:#94a3b8;">+ 버튼을 눌러 학급을 추가하세요</div>';
+      return;
+    }
+
+    // "전체" 학급을 분리
+    const allClass = classes.find(c => c.id === 'class_all');
+    const otherClasses = classes.filter(c => c.id !== 'class_all');
+    
+    // 나머지 학급 정렬: 학년/반별 학급을 먼저, 그 다음 사용자가 추가한 학급
+    otherClasses.sort((a, b) => {
+      // 학년/반 형식인 학급은 학년순, 반순으로 정렬
+      const aMatch = a.name.match(/(\d+)학년\s*(\d+)반/);
+      const bMatch = b.name.match(/(\d+)학년\s*(\d+)반/);
+      
+      if(aMatch && bMatch) {
+        const aGrade = parseInt(aMatch[1]);
+        const aClass = parseInt(aMatch[2]);
+        const bGrade = parseInt(bMatch[1]);
+        const bClass = parseInt(bMatch[2]);
+        
+        if(aGrade !== bGrade) return aGrade - bGrade;
+        return aClass - bClass;
+      }
+      
+      if(aMatch) return -1; // 학년/반 형식이 우선
+      if(bMatch) return 1;
+      
+      // 나머지는 이름순
+      return a.name.localeCompare(b.name);
+    });
+    
+    // "전체" 학급을 맨 위에, 나머지는 그 아래에 배치
+    const sortedClasses = allClass ? [allClass, ...otherClasses] : otherClasses;
+    
+    let html = '';
+    sortedClasses.forEach((classItem, index) => {
+      const isActive = localStorage.getItem('selected_class') === classItem.id;
+      const isAllClass = classItem.id === 'class_all';
+      html += `
+        <div class="class-item ${isActive ? 'active' : ''}" style="display: flex; justify-content: space-between; align-items: center;">
+          <span onclick="selectClass('${classItem.id}')" style="flex: 1; cursor: pointer;">${classItem.name}</span>
+          ${!isAllClass ? `<button class="btn-delete-student" onclick="deleteClass('${classItem.id}', '${classItem.name}')" title="학급 삭제" style="margin-left: 8px;">🗑️</button>` : ''}
+          </div>
+      `;
+    });
+    container.innerHTML = html;
+  }
+  
+  // 학급 선택
+  function selectClass(classId) {
+    localStorage.setItem('selected_class', classId);
+    renderClassList();
+    renderStudentList(classId);
+  }
+  
+  // 학생 목록 렌더링 (학급별)
+  function renderStudentList(classId) {
+    const classes = JSON.parse(localStorage.getItem('teacher_classes') || '[]');
+    const classItem = classes.find(c => c.id === classId);
+    if(!classItem) return;
+    
+    const allSubmissions = JSON.parse(localStorage.getItem('student_submissions') || '[]');
+    const container = document.getElementById('student-list-container');
+    
+    // "전체" 학급인 경우 모든 학생 표시
+    if(classId === 'class_all') {
+      const allStudents = [...new Set(allSubmissions.map(s => `${s.id}|${s.name}`))];
+      
+      if(allStudents.length === 0) {
+        container.innerHTML = '<div class="empty-state" style="padding:20px; font-size:12px; color:#94a3b8;">제출된 학생이 없습니다</div>';
+        document.getElementById('student-worksheet-container').innerHTML = '<div class="empty-state"><div class="empty-state-icon">👆</div><div>학생을 선택하세요</div></div>';
+        return;
+      }
+      
+      let html = '';
+      allStudents.forEach(studentKey => {
+        const [id, name] = studentKey.split('|');
+        const submission = allSubmissions.find(s => s.id === id && s.name === name);
+        const hasSubmission = !!submission;
+        const pendingCount = hasSubmission && submission.status === 'pending' ? 1 : 0;
+        
+        html += `
+          <div class="student-item">
+            <span onclick="selectStudent('${id}', '${name}')" style="flex: 1; cursor: pointer;">${id} ${name}</span>
+            <div class="student-actions" onclick="event.stopPropagation();">
+              ${pendingCount > 0 ? `<span class="student-badge">${pendingCount}</span>` : ''}
+              <button class="btn-delete-student" onclick="deleteStudent('${id}', '${name}')" title="학생 삭제">🗑️</button>
+          </div>
+            </div>
+        `;
+      });
+      container.innerHTML = html;
+      return;
+    }
+    
+    // 일반 학급인 경우: 학번 기반으로 올바른 학생만 표시
+    const classStudents = classItem.students || [];
+    
+    // 학번 기반으로 필터링: 현재 학급 이름과 일치하는 학생만 표시
+    const filteredStudents = classStudents.filter(studentKey => {
+      const [id, name] = studentKey.split('|');
+      const classInfo = extractGradeAndClass(id);
+      if(!classInfo) return false; // 학번 형식이 맞지 않으면 제외
+      
+      // 학번 기반으로 추출한 학급 이름이 현재 학급 이름과 일치하는지 확인
+      return classInfo.className === classItem.name;
+    });
+    
+    // 학급 정보 업데이트 (잘못 배정된 학생 제거)
+    if(filteredStudents.length !== classStudents.length) {
+      classItem.students = filteredStudents;
+      const updatedClasses = classes.map(c => c.id === classId ? classItem : c);
+      localStorage.setItem('teacher_classes', JSON.stringify(updatedClasses));
+    }
+    
+    if(filteredStudents.length === 0) {
+      container.innerHTML = '<div class="empty-state" style="padding:20px; font-size:12px; color:#94a3b8;">이 학급에 학생이 없습니다</div>';
+      document.getElementById('student-worksheet-container').innerHTML = '<div class="empty-state"><div class="empty-state-icon">👆</div><div>학생을 선택하세요</div></div>';
+      return;
+    }
+    
+    let html = '';
+    filteredStudents.forEach(studentKey => {
+      const [id, name] = studentKey.split('|');
+      const submission = allSubmissions.find(s => s.id === id && s.name === name);
+      const hasSubmission = !!submission;
+      const pendingCount = hasSubmission && submission.status === 'pending' ? 1 : 0;
+      
+      html += `
+        <div class="student-item">
+          <span onclick="selectStudent('${id}', '${name}')" style="flex: 1; cursor: pointer;">${id} ${name}</span>
+          <div class="student-actions" onclick="event.stopPropagation();">
+            ${pendingCount > 0 ? `<span class="student-badge">${pendingCount}</span>` : ''}
+            <button class="btn-delete-student" onclick="deleteStudent('${id}', '${name}')" title="학생 삭제">🗑️</button>
+          </div>
+        </div>
+      `;
+    });
+    container.innerHTML = html;
+  }
+
+  // 학생별 관리 렌더링
+  function renderStudentManagement() {
+    const allSubmissions = JSON.parse(localStorage.getItem('student_submissions') || '[]');
+    const container = document.getElementById('all-student-list-container');
+    
+    // 모든 학생 추출 (중복 제거)
+    const studentMap = new Map();
+    allSubmissions.forEach(sub => {
+      const key = `${sub.id}|${sub.name}`;
+      if(!studentMap.has(key)) {
+        studentMap.set(key, { id: sub.id, name: sub.name, submission: sub });
+      }
+    });
+    
+    if(studentMap.size === 0) {
+      container.innerHTML = '<div class="empty-state" style="padding:20px; font-size:12px; color:#94a3b8;">제출된 과제가 없습니다</div>';
+      document.getElementById('all-student-worksheet-container').innerHTML = '<div class="empty-state"><div class="empty-state-icon">📝</div><div>제출된 과제가 없습니다</div></div>';
+      return;
+    }
+    
+    let html = '';
+    studentMap.forEach((student, key) => {
+      const pendingCount = student.submission.status === 'pending' ? 1 : 0;
+      html += `
+        <div class="student-item">
+          <span onclick="selectStudent('${student.id}', '${student.name}')" style="flex: 1; cursor: pointer;">${student.id} ${student.name}</span>
+          <div class="student-actions" onclick="event.stopPropagation();">
+            ${pendingCount > 0 ? `<span class="student-badge">${pendingCount}</span>` : ''}
+            <button class="btn-delete-student" onclick="deleteStudent('${student.id}', '${student.name}')" title="학생 삭제">🗑️</button>
+          </div>
+        </div>
+      `;
+    });
+    container.innerHTML = html;
+  }
+  
+  // 학생 선택 및 학습지 표시
+  function selectStudent(studentId, studentName) {
+    // 모든 student-item에서 active 제거
+    document.querySelectorAll('.student-item').forEach(item => item.classList.remove('active'));
+    // 클릭된 항목에 active 추가
+    event.currentTarget.classList.add('active');
+    
+    const allSubmissions = JSON.parse(localStorage.getItem('student_submissions') || '[]');
+    const submission = allSubmissions.find(s => s.id === studentId && s.name === studentName);
+    
+    // 학생별 관리 뷰인지 학급별 관리 뷰인지 확인
+    const isStudentManagement = document.getElementById('student-management-view').style.display !== 'none';
+    const container = isStudentManagement 
+      ? document.getElementById('all-student-worksheet-container')
+      : document.getElementById('student-worksheet-container');
+    
+    if(!submission) {
+      container.innerHTML = '<div class="empty-state"><div class="empty-state-icon">📝</div><div>아직 제출된 과제가 없습니다</div></div>';
+      return;
+    }
+    
+    renderStudentWorksheet(submission, container);
+  }
+  
+  // 학습지 렌더링
+  function renderStudentWorksheet(submission, container) {
+    const statusText = {
+      'pending': '대기중',
+      'approved': '승인됨',
+      'rejected': '반려됨'
+    };
+    
+    const html = `
+      <div class="student-worksheet">
+        <div class="worksheet-header">
+          <div class="worksheet-title">${submission.id} ${submission.name}</div>
+          <div class="worksheet-status ${submission.status}">${statusText[submission.status]}</div>
+        </div>
+        
+        <div class="worksheet-section">
+          <div class="worksheet-label">문제</div>
+          <div class="worksheet-value">${submission.problem || '-'}</div>
+        </div>
+        
+        <div class="worksheet-section">
+          <div class="worksheet-label">SDG 목표</div>
+          <div class="worksheet-value">${submission.sdg || '-'}</div>
+        </div>
+        
+        <div class="worksheet-section">
+          <div class="worksheet-label">시나리오</div>
+          <div class="worksheet-value">${submission.scenario || '-'}</div>
+        </div>
+        
+        <div class="worksheet-feedback">
+          <div class="worksheet-label">피드백</div>
+          <textarea id="worksheet-feedback-${submission.timestamp}" class="worksheet-feedback-input" placeholder="피드백을 입력하세요...">${submission.teacherFeedback || ''}</textarea>
+          <div class="worksheet-actions">
+            <button class="worksheet-btn approve" onclick="updateStudentStatus('${submission.timestamp}', 'approved')">승인</button>
+            <button class="worksheet-btn reject" onclick="updateStudentStatus('${submission.timestamp}', 'rejected')">반려</button>
+          </div>
+          </div>
+        </div>
+      `;
+    
+    container.innerHTML = html;
+  }
+
+  // 학생 상태 업데이트
+  function updateStudentStatus(timestamp, newStatus) {
+    let data = JSON.parse(localStorage.getItem('student_submissions') || '[]');
+    const idx = data.findIndex(d => d.timestamp === timestamp);
+    
+    if(idx === -1) return;
+
+    const feedbackEl = document.getElementById(`worksheet-feedback-${timestamp}`);
+    const feedback = feedbackEl ? feedbackEl.value : '';
+    
+    if(newStatus === 'rejected' && !feedback.trim()) {
+      alert("반려 시 피드백을 반드시 입력해주세요.");
+      return;
+    }
+
+    data[idx].status = newStatus;
+    data[idx].teacherFeedback = feedback;
+    
+    localStorage.setItem('student_submissions', JSON.stringify(data));
+    
+    // 현재 선택된 학생 정보로 학습지 다시 렌더링
+    const submission = data[idx];
+    const isStudentManagement = document.getElementById('student-management-view').style.display !== 'none';
+    const container = isStudentManagement 
+      ? document.getElementById('all-student-worksheet-container')
+      : document.getElementById('student-worksheet-container');
+    
+    renderStudentWorksheet(submission, container);
+    
+    // 학생 목록도 업데이트 (배지 표시를 위해)
+    const tabType = isStudentManagement ? 'student' : 'class';
+    switchTeacherTab(tabType);
+    if(!isStudentManagement) {
+      const selectedClass = localStorage.getItem('selected_class');
+      if(selectedClass) {
+        selectClass(selectedClass);
+      }
+    }
+    
+    alert("처리되었습니다. 학생이 다음 로그인 시 피드백 알림을 받게 됩니다.");
+  }
+  
+  // 학생 삭제 함수
+  function deleteStudent(studentId, studentName) {
+    if(!confirm(`"${studentId} ${studentName}" 학생의 모든 데이터를 삭제하시겠습니까?\n\n삭제될 내용:\n- 제출한 과제\n- 학급 정보\n- 학습 완료 상태`)) {
+      return;
+    }
+    
+    const studentKey = `${studentId}|${studentName}`;
+    
+    // 1. 제출 데이터에서 삭제
+    let submissions = JSON.parse(localStorage.getItem('student_submissions') || '[]');
+    submissions = submissions.filter(s => !(s.id === studentId && s.name === studentName));
+    localStorage.setItem('student_submissions', JSON.stringify(submissions));
+    
+    // 2. 모든 학급에서 학생 제거
+    let classes = JSON.parse(localStorage.getItem('teacher_classes') || '[]');
+    classes = classes.map(classItem => {
+      if(classItem.students && classItem.students.includes(studentKey)) {
+        classItem.students = classItem.students.filter(s => s !== studentKey);
+      }
+      return classItem;
+    });
+    localStorage.setItem('teacher_classes', JSON.stringify(classes));
+    
+    // 3. 학습 완료 상태 삭제
+    const completedKey = `learning_completed_${studentId}_${studentName}`;
+    localStorage.removeItem(completedKey);
+    
+    // 4. UI 새로고침
+    const isStudentManagement = document.getElementById('student-management-view').style.display !== 'none';
+    if(isStudentManagement) {
+      renderStudentManagement();
+      document.getElementById('all-student-worksheet-container').innerHTML = '<div class="empty-state"><div class="empty-state-icon">👆</div><div>학생을 선택하세요</div></div>';
+    } else {
+      const selectedClass = localStorage.getItem('selected_class');
+      if(selectedClass) {
+        selectClass(selectedClass);
+      }
+      document.getElementById('student-worksheet-container').innerHTML = '<div class="empty-state"><div class="empty-state-icon">👆</div><div>학생을 선택하세요</div></div>';
+    }
+    
+    alert(`"${studentId} ${studentName}" 학생이 삭제되었습니다.`);
+  }
+  
+  // 학급 삭제 함수
+  function deleteClass(classId, className) {
+    if(!confirm(`"${className}" 학급을 삭제하시겠습니까?\n\n학급이 삭제되어도 학생 데이터는 유지됩니다.`)) {
+      return;
+    }
+    
+    let classes = JSON.parse(localStorage.getItem('teacher_classes') || '[]');
+    classes = classes.filter(c => c.id !== classId);
+    localStorage.setItem('teacher_classes', JSON.stringify(classes));
+    
+    // 선택된 학급이 삭제된 학급이면 선택 해제
+    if(localStorage.getItem('selected_class') === classId) {
+      localStorage.removeItem('selected_class');
+    }
+    
+    // UI 새로고침
+    renderClassList();
+    document.getElementById('student-list-container').innerHTML = '<div class="empty-state"><div class="empty-state-icon">📚</div><div>학급을 선택하세요</div></div>';
+    document.getElementById('student-worksheet-container').innerHTML = '<div class="empty-state"><div class="empty-state-icon">👆</div><div>학생을 선택하세요</div></div>';
+    
+    alert(`"${className}" 학급이 삭제되었습니다.`);
+  }
+  
+  // 학번에서 학년과 반 추출
+  function extractGradeAndClass(studentId) {
+    if(!studentId || studentId.length !== 5) return null;
+    
+    // 학번 형식: 총 5자리
+    // 첫 번째 자리: 학년
+    // 두 번째 + 세 번째 자리: 반 (2자리)
+    // 네 번째 + 다섯 번째 자리: 번호 (2자리)
+    // 예: 20325 -> 2학년 03반 25번 -> 2학년 3반
+    // 예: 11111 -> 1학년 11반 11번 -> 1학년 11반
+    // 예: 20312 -> 2학년 03반 12번 -> 2학년 3반
+    
+    const idStr = studentId.toString();
+    
+    if(idStr.length === 5) {
+      const grade = parseInt(idStr[0]);              // 첫 번째 자리: 학년
+      const classNum = parseInt(idStr.substring(1, 3)); // 두 번째+세 번째 자리: 반
+      
+      // 학년이 1-6 사이이고, 반이 1-99 사이인 경우만 유효
+      if(grade >= 1 && grade <= 6 && classNum >= 1 && classNum <= 99) {
+        return {
+          grade: grade,
+          classNum: classNum,
+          className: `${grade}학년 ${classNum}반`
+        };
+      }
+    }
+    
+    return null;
+  }
+  
+  // 학번 기반으로 학생을 학급에 자동 배정
+  function assignStudentToClassById(studentId, studentName) {
+    const classInfo = extractGradeAndClass(studentId);
+    if(!classInfo) return; // 학번 형식이 맞지 않으면 배정하지 않음
+    
+    const studentKey = `${studentId}|${studentName}`;
+    let classes = JSON.parse(localStorage.getItem('teacher_classes') || '[]');
+    const correctClassName = classInfo.className;
+    
+    // 해당 학생을 잘못 배정된 학급에서 제거 (올바른 학급과 "전체" 제외)
+    classes = classes.map(classItem => {
+      if(classItem.students && classItem.students.includes(studentKey)) {
+        // 올바른 학급이 아니고 "전체"도 아니면 제거
+        if(classItem.name !== correctClassName && classItem.id !== 'class_all') {
+          classItem.students = classItem.students.filter(s => s !== studentKey);
+        }
+      }
+      return classItem;
+    });
+    
+    // 해당 학급 찾기 또는 생성
+    let targetClass = classes.find(c => c.name === correctClassName);
+    
+    if(!targetClass) {
+      // 학급이 없으면 생성
+      targetClass = {
+        id: 'class_' + classInfo.grade + '_' + classInfo.classNum,
+        name: correctClassName,
+        students: []
+      };
+      classes.push(targetClass);
+    }
+    
+    // 학생이 해당 학급에 없으면 추가
+    if(!targetClass.students.includes(studentKey)) {
+      targetClass.students.push(studentKey);
+    }
+    
+    // classes 배열 업데이트
+    classes = classes.map(c => c.id === targetClass.id ? targetClass : c);
+    localStorage.setItem('teacher_classes', JSON.stringify(classes));
+  }
+  
+  // 학급 추가 다이얼로그 표시
+  function showAddClassDialog() {
+    const className = prompt('학급 이름을 입력하세요:');
+    if(!className || !className.trim()) return;
+    
+    const classes = JSON.parse(localStorage.getItem('teacher_classes') || '[]');
+    const newClass = {
+      id: 'class_' + Date.now(),
+      name: className.trim(),
+      students: []
+    };
+    
+    classes.push(newClass);
+    localStorage.setItem('teacher_classes', JSON.stringify(classes));
+    
+    renderClassList();
+    selectClass(newClass.id);
+    
+    // 학생 추가 안내
+    alert(`"${className}" 학급이 생성되었습니다.\n학생은 학번|이름 형식으로 추가할 수 있습니다.`);
+  }
+
+  function goToTeacherConfig() {
+    const savedPrompt = localStorage.getItem('teacher_prompt_v1');
+    const savedApiKey = localStorage.getItem('openai_api_key');
+    if(savedPrompt) document.getElementById('teacher-prompt').value = savedPrompt;
+    if(savedApiKey) document.getElementById('api-key').value = savedApiKey;
+    showView('view-teacher-config');
+  }
+
+  function saveTeacherConfig() {
+    const prompt = document.getElementById('teacher-prompt').value;
+    const apiKey = document.getElementById('api-key').value.trim();
+    
+    localStorage.setItem('teacher_prompt_v1', prompt);
+    
+    if(apiKey) {
+      localStorage.setItem('openai_api_key', apiKey);
+      alert('설정이 저장되었습니다. (API 키는 안전한 백엔드 서버를 통해 관리하는 것을 권장합니다.)');
+    } else {
+      localStorage.removeItem('openai_api_key');
+      alert('설정이 저장되었습니다. (기본 검증만 사용됩니다.)');
+    }
+    
+    showDashboard();
+  }
+
+  function clearData() {
+    if(confirm("모든 데이터를 삭제하시겠습니까? (제출 데이터와 학급 정보가 모두 삭제됩니다)")) {
+      localStorage.removeItem('student_submissions');
+      localStorage.removeItem('teacher_classes');
+      localStorage.removeItem('selected_class');
+      renderTeacherDashboard();
+    }
+  }
+
+  /* =========================================
+     초음파 센서 학습 페이지 로직
+     ========================================= */
+  let simDistance = 400;
+  const soundSpeed = 0.034; // cm/μs
+
+  function initSimulation() {
+    updateSimDistance(400);
+  }
+
+  function updateSimDistance(val) {
+    simDistance = parseInt(val);
+    
+    // 나방 위치 계산 (400cm = 10%, 2cm = 85%)
+    const rightPercent = 85 - ((simDistance - 2) * (75 / 398));
+    document.getElementById('sim-moth').style.right = rightPercent + '%';
+    
+    // 거리 및 시간 표시
+    document.getElementById('disp-distance').textContent = `${simDistance}cm`;
+    const timeUs = Math.round((simDistance * 2) / soundSpeed);
+    document.getElementById('disp-time').textContent = `${timeUs.toLocaleString()}μs`;
+    
+    // 박쥐 말풍선 업데이트
+    updateBatSpeech(simDistance);
+  }
+  
+  function updateBatSpeech(distance) {
+    const speechBubble = document.getElementById('bat-speech-bubble');
+    const speechText = document.getElementById('bat-speech-text');
+    if(!speechBubble || !speechText) return;
+    
+    let message = '';
+    let bgGradient = '';
+    let borderColor = '';
+    let textColor = '';
+    let tailBorderColor = '';
+    
+    if (distance >= 300) {
+      // 먼 경우: "음... 아직은 좀 먼데? (탐색 중)"
+      message = '음... 아직은 좀 먼데? (탐색 중)';
+      bgGradient = 'linear-gradient(135deg, #fef3c7, #fde68a)';
+      borderColor = '#f59e0b';
+      textColor = '#92400e';
+      tailBorderColor = '#f59e0b';
+    } else if (distance >= 100) {
+      // 적당한 거리: "오호! 딱 좋은 거리다! (추적 중)"
+      message = '오호! 딱 좋은 거리다! (추적 중)';
+      bgGradient = 'linear-gradient(135deg, #dbeafe, #bfdbfe)';
+      borderColor = '#3b82f6';
+      textColor = '#1e40af';
+      tailBorderColor = '#3b82f6';
+    } else {
+      // 가까운 거리: "잡았다 요놈! (사정권 진입)"
+      message = '잡았다 요놈! (사정권 진입)';
+      bgGradient = 'linear-gradient(135deg, #dcfce7, #bbf7d0)';
+      borderColor = '#22c55e';
+      textColor = '#166534';
+      tailBorderColor = '#22c55e';
+    }
+    
+    speechText.textContent = message;
+    speechText.style.color = textColor;
+    
+    const bubbleContainer = document.getElementById('bat-bubble-container');
+    if(bubbleContainer) {
+      bubbleContainer.style.background = bgGradient;
+      bubbleContainer.style.borderColor = borderColor;
+    }
+    
+    // 말풍선 꼬리 색상 변경
+    const tailOuter = document.getElementById('bat-tail-outer');
+    const tailInner = document.getElementById('bat-tail-inner');
+    if(tailOuter) tailOuter.style.borderRightColor = tailBorderColor;
+    
+    if(tailInner) {
+      // 두 번째 꼬리는 배경 그라데이션에 맞춰 조정
+      if(distance >= 300) {
+        tailInner.style.borderRightColor = '#fde68a';
+      } else if(distance >= 100) {
+        tailInner.style.borderRightColor = '#bfdbfe';
+      } else {
+        tailInner.style.borderRightColor = '#bbf7d0';
+      }
+    }
+    
+    // 말풍선 표시
+    speechBubble.style.opacity = '1';
+  }
+
+  function fireWave() {
+    const ping = document.getElementById('wave-ping');
+    const pong = document.getElementById('wave-pong');
+    const moth = document.getElementById('sim-moth');
+    const visual = document.getElementById('sim-visual');
+    
+    // 초기화
+    ping.style.transition = 'none';
+    pong.style.transition = 'none';
+    ping.style.opacity = '1';
+    pong.style.opacity = '0';
+    ping.style.left = '90px';
+    
+    // 나방 위치 계산 (퍼센트 기반으로 계산)
+    const visualRect = visual.getBoundingClientRect();
+    const visualWidth = visualRect.width;
+    const mothRect = moth.getBoundingClientRect();
+    const mothLeft = mothRect.left - visualRect.left;
+    const targetX = mothLeft + 20; // 나방 중심 기준
+    
+    // 애니메이션 시간 계산 (거리에 비례)
+    const animTime = 0.3 + (simDistance / 400) * 1.0;
+    
+    // Ping 애니메이션 (박쥐 -> 나방)
+    setTimeout(() => {
+      ping.style.transition = `left ${animTime}s linear`;
+      ping.style.left = `${targetX}px`;
+    }, 50);
+    
+    // Pong 애니메이션 (나방 -> 박쥐)
+    setTimeout(() => {
+      ping.style.opacity = '0';
+      pong.style.left = `${targetX}px`;
+      pong.style.opacity = '1';
+      setTimeout(() => {
+        pong.style.transition = `left ${animTime}s linear`;
+        pong.style.left = '90px';
+      }, 50);
+    }, animTime * 1000 + 50);
+    
+    // Pong 사라짐
+    setTimeout(() => {
+      pong.style.opacity = '0';
+    }, animTime * 2000 + 100);
+  }
+
+  let quizAnswered = false; // 퀴즈 정답 여부
+  
+  function checkQuizAnswer(btn, isCorrect, answerType) {
+    const buttons = document.querySelectorAll('.quiz-option-btn');
+    // 이전 선택 해제 (다시 선택 가능하도록)
+    buttons.forEach(b => {
+      b.classList.remove('correct', 'wrong');
+    });
+    
+    const feedback = document.getElementById('quiz-feedback');
+    feedback.style.display = 'block';
+    
+    if(isCorrect) {
+      btn.classList.add('correct');
+      feedback.style.background = 'rgba(236, 253, 245, 0.8)';
+      feedback.style.border = '2px solid #10b981';
+      feedback.style.color = '#047857';
+      feedback.innerHTML = "✅ 정답! 초음파 센서는 소리가 갔다 오는 시간으로 '거리'를 계산해요.";
+      quizAnswered = true;
+    } else {
+      btn.classList.add('wrong');
+      feedback.style.background = 'rgba(254, 242, 242, 0.8)';
+      feedback.style.border = '2px solid #ef4444';
+      feedback.style.color = '#991b1b';
+      
+      // 모든 오답에 동일한 피드백 형식 사용
+      feedback.innerHTML = "❌ 땡! 초음파 센서는 물체에 반사되어 돌아오는 '시간'을 측정합니다. 다시 생각해보고 정답을 찾아보세요! 💭";
+      quizAnswered = false;
+    }
+  }
+
+  /* =========================================
+     드래그 앤 드롭 기능
+     ========================================= */
+  let draggedElement = null;
+  let draggedWord = null;
+  
+  // 드래그 앤 드롭 이벤트 리스너 설정
+  function initDragDrop() {
+    // 드래그 가능한 단어들에 이벤트 리스너 추가
+    document.querySelectorAll('.drag-word').forEach(word => {
+      word.removeEventListener('dragstart', handleDragStart);
+      word.removeEventListener('dragend', handleDragEnd);
+      word.addEventListener('dragstart', handleDragStart);
+      word.addEventListener('dragend', handleDragEnd);
+    });
+    
+    // 드롭 존에 이벤트 리스너 추가
+    document.querySelectorAll('.drop-zone').forEach(zone => {
+      zone.removeEventListener('dragover', handleDragOver);
+      zone.removeEventListener('drop', handleDrop);
+      zone.removeEventListener('dragenter', handleDragEnter);
+      zone.removeEventListener('dragleave', handleDragLeave);
+      zone.addEventListener('dragover', handleDragOver);
+      zone.addEventListener('drop', handleDrop);
+      zone.addEventListener('dragenter', handleDragEnter);
+      zone.addEventListener('dragleave', handleDragLeave);
+    });
+  }
+  
+  // 페이지 로드 시 초기화
+  document.addEventListener('DOMContentLoaded', function() {
+    setTimeout(initDragDrop, 100);
+  });
+  
+  function handleDragStart(e) {
+    draggedElement = this;
+    draggedWord = this.getAttribute('data-word');
+    this.style.opacity = '0.5';
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/html', this.innerHTML);
+  }
+  
+  function handleDragEnd(e) {
+    this.style.opacity = '1';
+    document.querySelectorAll('.drop-zone').forEach(zone => {
+      const droppedWord = zone.querySelector('.dropped-word');
+      if(!droppedWord) {
+        zone.style.background = 'white';
+        zone.style.border = '2px dashed #c4b5fd';
+      }
+    });
+  }
+  
+  function handleDragOver(e) {
+    if(e.preventDefault) {
+      e.preventDefault();
+    }
+    e.dataTransfer.dropEffect = 'move';
+    return false;
+  }
+  
+  function handleDragEnter(e) {
+    const droppedWord = this.querySelector('.dropped-word');
+    if(!droppedWord) {
+      this.style.background = '#ede9fe';
+      this.style.border = '2px dashed #8b5cf6';
+    }
+  }
+  
+  function handleDragLeave(e) {
+    const droppedWord = this.querySelector('.dropped-word');
+    if(!droppedWord) {
+      this.style.background = 'white';
+      this.style.border = '2px dashed #c4b5fd';
+    }
+  }
+  
+  function handleDrop(e) {
+    if(e.stopPropagation) {
+      e.stopPropagation();
+    }
+    
+    if(draggedElement) {
+      const word = draggedWord;
+      const dropZone = this;
+      
+      // 이미 단어가 있으면 제거
+      const existingWord = dropZone.querySelector('.dropped-word');
+      if(existingWord) {
+        // 원래 단어 버튼 복원
+        const wordText = existingWord.textContent.trim();
+        const wordButton = document.createElement('div');
+        wordButton.className = 'drag-word';
+        wordButton.setAttribute('draggable', 'true');
+        wordButton.setAttribute('data-word', wordText);
+        wordButton.textContent = wordText;
+        wordButton.style.cssText = 'background: linear-gradient(135deg, #8b5cf6, #6366f1); color: white; padding: 12px 28px; border-radius: 25px; font-size: 16px; font-weight: 600; cursor: grab; user-select: none; box-shadow: 0 4px 8px rgba(139, 92, 246, 0.3); transition: all 0.3s ease;';
+        
+        // 이벤트 리스너 다시 추가
+        wordButton.addEventListener('dragstart', handleDragStart);
+        wordButton.addEventListener('dragend', handleDragEnd);
+        
+        draggedElement.parentNode.appendChild(wordButton);
+        existingWord.remove();
+      }
+      
+      // 새 단어 추가 (가운데 정렬)
+      dropZone.innerHTML = `<span class="dropped-word" style="color: #1e293b; font-weight: 600; display: block; text-align: center;">${word}</span>`;
+      dropZone.style.background = 'white';
+      dropZone.style.border = '2px dashed #a78bfa';
+      
+      // 원래 단어 버튼 제거
+      draggedElement.remove();
+      draggedElement = null;
+      draggedWord = null;
+    }
+    
+    return false;
+  }
+  
+  function resetDragDrop() {
+    // 모든 드롭 존에서 단어를 다시 단어 컨테이너로 이동
+    const wordContainer = document.getElementById('word-container');
+    if(!wordContainer) return;
+    
+    // 드롭 존에서 단어 추출
+    document.querySelectorAll('.drop-zone').forEach(zone => {
+      const droppedWord = zone.querySelector('.dropped-word');
+      if(droppedWord) {
+        const wordText = droppedWord.textContent.trim();
+        
+        // 단어 버튼 다시 생성
+        const wordButton = document.createElement('div');
+        wordButton.className = 'drag-word';
+        wordButton.setAttribute('draggable', 'true');
+        wordButton.setAttribute('data-word', wordText);
+        wordButton.textContent = wordText;
+        wordButton.style.cssText = 'background: linear-gradient(135deg, #8b5cf6, #6366f1); color: white; padding: 12px 28px; border-radius: 25px; font-size: 16px; font-weight: 600; cursor: grab; user-select: none; box-shadow: 0 4px 8px rgba(139, 92, 246, 0.3); transition: all 0.3s ease;';
+        
+        wordButton.addEventListener('dragstart', handleDragStart);
+        wordButton.addEventListener('dragend', handleDragEnd);
+        
+        wordContainer.appendChild(wordButton);
+      }
+      
+      // 드롭 존 초기화
+      zone.innerHTML = '';
+      zone.style.background = 'white';
+      zone.style.border = '2px dashed #c4b5fd';
+    });
+    
+    // 이벤트 리스너 다시 설정
+    initDragDrop();
+    
+    // 피드백 숨기기
+    const feedback = document.getElementById('reflection-feedback');
+    if(feedback) feedback.style.display = 'none';
+  }
+  
+  function checkDragDropAnswer() {
+    const dropZones = [
+      { id: 'drop1', correct: '초음파' },
+      { id: 'drop2', correct: '반사' },
+      { id: 'drop3', correct: '시간' },
+      { id: 'drop4', correct: '거리' }
+    ];
+    
+    const reflectionFeedbackDiv = document.getElementById('reflection-feedback');
+    reflectionFeedbackDiv.style.display = 'block';
+    
+    let allFilled = true;
+    let allCorrect = true;
+    const wrongBlanks = [];
+    
+    dropZones.forEach((zone, index) => {
+      const dropZone = document.getElementById(zone.id);
+      const droppedWord = dropZone.querySelector('.dropped-word');
+      
+      if(!droppedWord) {
+        allFilled = false;
+        dropZone.style.background = '#fee2e2';
+        dropZone.style.border = '2px dashed #ef4444';
+      } else {
+        const word = droppedWord.textContent.trim();
+        if(word === zone.correct) {
+          dropZone.style.background = '#ede9fe';
+          dropZone.style.border = '2px solid #8b5cf6';
+        } else {
+          allCorrect = false;
+          wrongBlanks.push(`${index + 1}번`);
+          dropZone.style.background = '#fee2e2';
+          dropZone.style.border = '2px solid #ef4444';
+        }
+      }
+    });
+    
+    if(!allFilled) {
+      reflectionFeedbackDiv.style.background = 'rgba(254, 242, 242, 0.8)';
+      reflectionFeedbackDiv.style.border = '2px solid #ef4444';
+      reflectionFeedbackDiv.style.color = '#991b1b';
+      reflectionFeedbackDiv.innerHTML = "❌ 모든 빈칸을 채워주세요!";
+      return;
+    }
+    
+    if(!allCorrect) {
+      reflectionFeedbackDiv.style.background = 'rgba(254, 242, 242, 0.8)';
+      reflectionFeedbackDiv.style.border = '2px solid #ef4444';
+      reflectionFeedbackDiv.style.color = '#991b1b';
+      reflectionFeedbackDiv.innerHTML = `❌ <strong>틀렸습니다!</strong><br>${wrongBlanks.join(', ')} 빈칸을 다시 확인해주세요.<br><br>💡 <strong>힌트:</strong> 초음파 센서는 초음파를 쏘고, 물체에 반사되어 돌아오는 시간으로 거리를 측정합니다.`;
+      return;
+    }
+    
+    // 모두 정답일 때
+    reflectionFeedbackDiv.style.background = 'rgba(237, 233, 254, 0.9)';
+    reflectionFeedbackDiv.style.border = '2px solid #8b5cf6';
+    reflectionFeedbackDiv.style.color = '#6d28d9';
+    reflectionFeedbackDiv.innerHTML = "✅ <strong>모두 맞습니다!</strong> 초음파 센서의 원리를 잘 이해하셨네요!";
+  }
+  
+  function completeLearning() {
+    // 1. 퀴즈 정답 확인
+    if(!quizAnswered) {
+      alert("⚠️ 개념 체크 문제의 정답을 먼저 맞춰주세요! 정답을 선택하면 초록색으로 표시됩니다.");
+      return;
+    }
+    
+    // 2. 드래그 앤 드롭 정답 확인
+    const dropZones = [
+      { id: 'drop1', correct: '초음파' },
+      { id: 'drop2', correct: '반사' },
+      { id: 'drop3', correct: '시간' },
+      { id: 'drop4', correct: '거리' }
+    ];
+    
+    const reflectionFeedbackDiv = document.getElementById('reflection-feedback');
+    reflectionFeedbackDiv.style.display = 'block';
+    
+    let allFilled = true;
+    let allCorrect = true;
+    
+    dropZones.forEach((zone) => {
+      const dropZone = document.getElementById(zone.id);
+      const droppedWord = dropZone.querySelector('.dropped-word');
+      
+      if(!droppedWord) {
+        allFilled = false;
+      } else {
+        const word = droppedWord.textContent.trim();
+        if(word !== zone.correct) {
+          allCorrect = false;
+        }
+      }
+    });
+    
+    if(!allFilled) {
+      reflectionFeedbackDiv.style.background = 'rgba(254, 242, 242, 0.8)';
+      reflectionFeedbackDiv.style.border = '2px solid #ef4444';
+      reflectionFeedbackDiv.style.color = '#991b1b';
+      reflectionFeedbackDiv.innerHTML = "❌ 모든 빈칸을 채워주세요!";
+      return;
+    }
+    
+    if(!allCorrect) {
+      reflectionFeedbackDiv.style.background = 'rgba(254, 242, 242, 0.8)';
+      reflectionFeedbackDiv.style.border = '2px solid #ef4444';
+      reflectionFeedbackDiv.style.color = '#991b1b';
+      reflectionFeedbackDiv.innerHTML = "❌ <strong>틀렸습니다!</strong> 정답 확인 버튼을 눌러 올바른 답을 확인해주세요.";
+      return;
+    }
+    
+    // 모두 정답일 때
+    reflectionFeedbackDiv.style.background = 'rgba(237, 233, 254, 0.9)';
+    reflectionFeedbackDiv.style.border = '2px solid #8b5cf6';
+    reflectionFeedbackDiv.style.color = '#6d28d9';
+    reflectionFeedbackDiv.innerHTML = "✅ <strong>모두 맞습니다!</strong> 초음파 센서의 원리를 잘 이해하셨네요! 이제 설계하러 가볼까요? 👉";
+    
+    setTimeout(() => {
+      // 학습 완료 상태 저장
+      if(currentUser && currentUser.id && currentUser.name) {
+        setLearningCompleted(currentUser.id, currentUser.name);
+      }
+      
+      // 학습 완료 후 학생 메인으로 이동
+      loadMySubmission();
+      showView('view-student-main');
+    }, 1500);
+  }
+
+  /* === 박쥐 생성 스크립트 === */
+  function createBats() {
+    const container = document.getElementById('bat-container');
+    if(!container) return; // 컨테이너가 없으면 리턴
+    
+    // 기존 박쥐 제거
+    container.innerHTML = '';
+    
+    const batCount = 20; // 박쥐 마리 수
+    
+    for(let i=0; i<batCount; i++) {
+      const bat = document.createElement('div');
+      bat.innerText = '🦇';
+      bat.classList.add('flying-bat');
+      
+      // 1. 랜덤 시작 위치 (Y축 0~100%)
+      const startY = Math.random() * 100;
+      
+      // 2. 랜덤 속도 (5초 ~ 15초 사이)
+      const duration = 8 + Math.random() * 12; 
+      
+      // 3. 랜덤 딜레이 (0초 ~ 5초 사이 - 자연스럽게 순차 등장)
+      const delay = Math.random() * 5;
+      
+      // 4. 랜덤 크기 (0.5배 ~ 1.5배 - 원근감 효과)
+      const scale = 0.5 + Math.random() * 1; 
+      
+      // 스타일 적용
+      bat.style.top = startY + 'vh';
+      bat.style.left = '-10vw'; // 화면 왼쪽 밖에서 시작
+      bat.style.animationDuration = duration + 's';
+      bat.style.animationDelay = delay + 's';
+      bat.style.fontSize = (2 * scale) + 'rem';
+      bat.style.opacity = 0.3 + Math.random() * 0.5; // 투명도도 랜덤
+      
+      container.appendChild(bat);
+    }
+  }
+  
+  // showIntro 함수 수정
+  const originalShowIntro = showIntro;
+  showIntro = function() {
+    originalShowIntro();
+    // 인트로 화면이 표시될 때 박쥐 생성
+    setTimeout(createBats, 100);
+  };
+
+  // 초기 실행
+  // 환경 변수에서 API 키가 있으면 localStorage에 자동 저장
+  if(typeof window !== 'undefined' && window.VITE_OPENAI_API_KEY) {
+    if(!localStorage.getItem('openai_api_key')) {
+      localStorage.setItem('openai_api_key', window.VITE_OPENAI_API_KEY);
+    }
+  }
+  
+  // 페이지 로드 시 박쥐 생성
+  window.addEventListener('load', function() {
+    if(document.getElementById('view-intro').classList.contains('active')) {
+      createBats();
+    }
+  });
+  
+  showIntro();
+</script>
+</body>
+</html>
