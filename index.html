@@ -3100,22 +3100,18 @@
               <div id="aiFeedbackContent" style="color: #475569; line-height: 1.6; font-size: 14px;"></div>
             </div>
           </div>
-          <div id="pinResult" class="pin-display-doctor" style="display:none; margin-top: 20px;">
-            <div class="pin-circle-doctor active">
-              <span class="pin-prefix-doctor">P</span>
-              <span class="pin-number-doctor" id="disp-trig">?</span>
-              <span class="pin-label-doctor">Trig</span>
-            </div>
-            <div class="pin-circle-doctor active">
-              <span class="pin-prefix-doctor">P</span>
-              <span class="pin-number-doctor" id="disp-echo">?</span>
-              <span class="pin-label-doctor">Echo</span>
-            </div>
-          </div>
         </div>
 
         <!-- STEP 1: 연결 시뮬레이터 -->
-        <div class="step-section-doctor">
+        <div class="step-section-doctor" id="step1-section" style="position: relative;">
+          <div id="step1-overlay" style="display: none; position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: rgba(255, 255, 255, 0.9); z-index: 100; border-radius: 12px; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 15px;">
+            <div style="font-size: 48px;">⚠️</div>
+            <div style="font-size: 18px; font-weight: bold; color: #ef4444;">STEP 0에서 오류를 먼저 수정해주세요!</div>
+            <div style="font-size: 14px; color: #64748b; text-align: center; max-width: 400px;">
+              Trig와 Echo 핀이 같은 핀으로 설정되어 있습니다.<br>
+              코드를 수정한 후 다시 분석해주세요.
+            </div>
+          </div>
           <div class="step-badge-doctor">STEP 1</div>
           <h2>🔌 초음파 센서 연결 실습</h2>
           <p class="description-doctor">초음파 센서의 핀을 드래그해서 확장보드의 올바른 위치에 연결해보세요!</p>
@@ -7279,8 +7275,8 @@
       const scores = selectionMatrixScores[item.id] || {};
       return `<tr>
         <td style="text-align:left;"><strong>${item.name}</strong><br><small style="color:#94a3b8;">${item.proposer || ''}</small></td>
-        ${selectionCriteria.map(c => `<td><input type="number" min="1" max="5" value="${scores[c] || ''}" 
-          onchange="updateScore(${item.id}, '${c}', this.value)" placeholder="-"></td>`).join('')}
+        ${selectionCriteria.map(c => `<td><input type="number" min="0" max="5" value="${scores[c] || ''}" 
+          onchange="updateScore(${item.id}, '${c}', this.value)" oninput="this.value = Math.min(5, Math.max(0, parseInt(this.value) || 0))" placeholder="0-5"></td>`).join('')}
         <td class="total-cell">${scores.total || '-'}</td>
         <td class="rank-cell">${getRankEmoji(scores.rank)}</td>
       </tr>`;
@@ -7289,7 +7285,14 @@
   
   function updateScore(id, c, val) {
     if(!selectionMatrixScores[id]) selectionMatrixScores[id] = {};
-    selectionMatrixScores[id][c] = parseInt(val) || 0;
+    // 최대 5점 제한
+    const score = Math.min(5, Math.max(0, parseInt(val) || 0));
+    selectionMatrixScores[id][c] = score;
+    // 입력 필드 값도 업데이트 (5점 초과 시)
+    const input = event?.target;
+    if(input && parseInt(val) > 5) {
+      input.value = 5;
+    }
     saveSelectionData();
   }
   
@@ -7750,6 +7753,28 @@
   
   // === 마이크로비트 닥터 관련 함수 ===
   
+  // STEP 1 사용 가능 여부 확인
+  function checkStep1Availability() {
+    const step1Section = document.getElementById('step1-section');
+    const step1Overlay = document.getElementById('step1-overlay');
+    if(!step1Section || !step1Overlay) return;
+    
+    // Trig와 Echo가 같은 핀인지 확인
+    const isSamePin = (pinInfo.trig !== null && pinInfo.trig !== undefined && 
+                       pinInfo.echo !== null && pinInfo.echo !== undefined && 
+                       pinInfo.trig === pinInfo.echo);
+    
+    if(isSamePin) {
+      step1Overlay.style.display = 'flex';
+      step1Section.style.opacity = '0.6';
+      step1Section.style.pointerEvents = 'none';
+    } else {
+      step1Overlay.style.display = 'none';
+      step1Section.style.opacity = '1';
+      step1Section.style.pointerEvents = 'auto';
+    }
+  }
+  
   // 전역 변수
   let pinInfo = { trig: null, echo: null };
   let port, reader, keepReading = false;
@@ -7818,17 +7843,43 @@
     // 시뮬레이터 초기화
     setTimeout(() => {
       simCanvas = document.getElementById('simCanvas');
-      if(simCanvas && !simCtx) {
-        simCtx = simCanvas.getContext('2d');
-        feedbackEl = document.getElementById('simulator-feedback-msg');
+      if(simCanvas) {
+        if(!simCtx) {
+          simCtx = simCanvas.getContext('2d');
+          feedbackEl = document.getElementById('simulator-feedback-msg');
+          
+          // 이벤트 리스너 등록
+          simCanvas.addEventListener('mousedown', handleStart);
+          simCanvas.addEventListener('mousemove', handleMove);
+          simCanvas.addEventListener('mouseup', handleEnd);
+          simCanvas.addEventListener('touchstart', (e) => handleStart(e.touches[0]));
+          simCanvas.addEventListener('touchmove', (e) => { e.preventDefault(); handleMove(e.touches[0]); });
+          simCanvas.addEventListener('touchend', handleEnd);
+        }
         
-        // 이벤트 리스너 등록
-        simCanvas.addEventListener('mousedown', handleStart);
-        simCanvas.addEventListener('mousemove', handleMove);
-        simCanvas.addEventListener('mouseup', handleEnd);
-        simCanvas.addEventListener('touchstart', (e) => handleStart(e.touches[0]));
-        simCanvas.addEventListener('touchmove', (e) => { e.preventDefault(); handleMove(e.touches[0]); });
-        simCanvas.addEventListener('touchend', handleEnd);
+        // STEP 0에서 추출한 핀 정보 확인 및 안내 메시지 표시
+        // 핀 번호가 0일 수 있으므로 명시적으로 null/undefined 체크
+        if((pinInfo.trig !== null && pinInfo.trig !== undefined) && (pinInfo.echo !== null && pinInfo.echo !== undefined)) {
+          // 같은 핀인지 확인
+          const isSamePin = pinInfo.trig === pinInfo.echo;
+          if(feedbackEl) {
+            if(isSamePin) {
+              feedbackEl.innerHTML = `❌ 오류: Trig와 Echo가 같은 핀(P${pinInfo.trig})입니다. STEP 0에서 코드를 수정해주세요!`;
+              feedbackEl.style.color = "#ef4444";
+            } else {
+              feedbackEl.innerHTML = `✅ STEP 0에서 핀 번호를 찾았어요! Trig: P${pinInfo.trig}, Echo: P${pinInfo.echo}에 연결해주세요.`;
+              feedbackEl.style.color = "#8b5cf6";
+            }
+          }
+        } else {
+          if(feedbackEl) {
+            feedbackEl.innerHTML = `⚠️ STEP 0에서 코드를 먼저 분석하여 핀 번호를 추출해주세요!`;
+            feedbackEl.style.color = "#f59e0b";
+          }
+        }
+        
+        // STEP 1 사용 가능 여부 확인
+        checkStep1Availability();
         
         // 초기 그리기
         drawSimulator();
@@ -7883,14 +7934,222 @@
     
     resultArea.innerHTML = '';
     statusDiv.innerHTML = '<div class="loader"></div> 🔍 코드를 읽고 있어요... (잠시만 기다려주세요)';
+    
+    const apiKey = getApiKey();
+    if(!apiKey) {
+      statusDiv.innerHTML = '⚠️ OpenAI API 키가 설정되지 않았습니다. GPT Vision API를 사용하려면 API 키가 필요합니다.';
+      resultArea.innerHTML = '<div class="ocr-result-box ocr-warning">API 키를 설정하면 더 정확한 코드 분석이 가능합니다.</div>';
+      return;
+    }
+    
     try {
-      const { data: { text } } = await Tesseract.recognize(file, 'kor+eng', { logger: m => console.log(m) });
-      console.log("추출된 텍스트:", text);
+      // 이미지를 base64로 변환
+      const base64Image = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+          const base64 = reader.result.split(',')[1];
+          resolve(base64);
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+      
+      // GPT Vision API 호출
+      const response = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${apiKey}`
+        },
+        body: JSON.stringify({
+          model: 'gpt-4o-mini',
+          messages: [
+            {
+              role: 'system',
+              content: 'You are an expert at analyzing block-based programming code. Extract pin numbers (Trig and Echo) from the code image and return only JSON format.'
+            },
+            {
+              role: 'user',
+              content: [
+                {
+                  type: 'text',
+                  text: `이 블록 코드 이미지를 분석해서 초음파 센서의 Trig와 Echo 핀 번호를 찾아주세요.
+
+중요: OCR 오류로 "P0"가 "80"으로 인식될 수 있습니다. "ping trig 80"은 실제로 "ping trig P0"를 의미합니다.
+"80", "81", "82" 등은 각각 "P0", "P1", "P2"로 해석해주세요.
+
+다음 JSON 형식으로만 응답하세요:
+{
+  "trigPin": 핀번호(숫자만, 예: 0, 1, 2) 또는 null,
+  "echoPin": 핀번호(숫자만, 예: 0, 1, 2) 또는 null,
+  "foundPins": [발견된 모든 핀 번호 배열(숫자만)],
+  "codeText": "코드에서 읽은 모든 텍스트"
+}
+
+핀 번호 찾기 규칙:
+- "ping trig P0" 또는 "ping trig 80" → trigPin: 0
+- "trig P1" 또는 "trig 81" → trigPin: 1
+- "echo P2" 또는 "echo 82" → echoPin: 2
+- "80", "81", "82" 등은 각각 0, 1, 2로 변환
+
+코드 텍스트를 모두 추출해서 정확히 분석해주세요.`
+                },
+                {
+                  type: 'image_url',
+                  image_url: {
+                    url: `data:image/jpeg;base64,${base64Image}`
+                  }
+                }
+              ]
+            }
+          ],
+          max_tokens: 500
+        })
+      });
+      
+      if(!response.ok) {
+        throw new Error(`API 오류: ${response.status}`);
+      }
+      
+      const result = await response.json();
+      const content = result.choices[0].message.content.trim();
+      
+      // JSON 파싱
+      let analysisResult;
+      try {
+        const jsonMatch = content.match(/\{[\s\S]*\}/);
+        if(jsonMatch) {
+          analysisResult = JSON.parse(jsonMatch[0]);
+        } else {
+          analysisResult = JSON.parse(content);
+        }
+      } catch(e) {
+        console.error('JSON 파싱 오류:', e, content);
+        throw new Error('GPT 응답을 파싱할 수 없습니다.');
+      }
+      
+      console.log("GPT 분석 결과:", analysisResult);
       statusDiv.innerHTML = '✅ 분석 완료!';
-      analyzeBlockCodeLogic(text);
+      
+      // OCR 결과 영역 숨기기 (AI 피드백만 표시)
+      resultArea.innerHTML = '';
+      resultArea.style.display = 'none';
+      
+      // 분석 결과 처리
+      let trigPinFound = false;
+      let echoPinFound = false;
+      
+      // trigPin과 echoPin 추출 (다양한 형식 지원)
+      if(analysisResult.trigPin !== null && analysisResult.trigPin !== undefined) {
+        let trigPin = analysisResult.trigPin;
+        // 문자열에서 숫자만 추출 (예: "P0" -> 0, "0" -> 0, "80" -> 0)
+        if(typeof trigPin === 'string') {
+          trigPin = trigPin.replace(/[^0-9]/g, '');
+          if(trigPin.length >= 2 && trigPin.startsWith('8')) {
+            trigPin = trigPin.slice(-1); // "80" -> "0"
+          }
+        }
+        const pinNum = parseInt(trigPin);
+        if(!isNaN(pinNum) && pinNum >= 0 && pinNum <= 19) {
+          pinInfo.trig = pinNum;
+          trigPinFound = true;
+        }
+      }
+      
+      if(analysisResult.echoPin !== null && analysisResult.echoPin !== undefined) {
+        let echoPin = analysisResult.echoPin;
+        // 문자열에서 숫자만 추출
+        if(typeof echoPin === 'string') {
+          echoPin = echoPin.replace(/[^0-9]/g, '');
+          if(echoPin.length >= 2 && echoPin.startsWith('8')) {
+            echoPin = echoPin.slice(-1); // "80" -> "0"
+          }
+        }
+        const pinNum = parseInt(echoPin);
+        if(!isNaN(pinNum) && pinNum >= 0 && pinNum <= 19) {
+          pinInfo.echo = pinNum;
+          echoPinFound = true;
+        }
+      }
+      
+      // foundPins에서도 추출 시도
+      if(!trigPinFound || !echoPinFound) {
+        const foundPins = analysisResult.foundPins || [];
+        if(foundPins.length > 0) {
+          for(let pin of foundPins) {
+            let pinNum = pin;
+            if(typeof pin === 'string') {
+              pinNum = pin.replace(/[^0-9]/g, '');
+              if(pinNum.length >= 2 && pinNum.startsWith('8')) {
+                pinNum = parseInt(pinNum.slice(-1));
+              } else {
+                pinNum = parseInt(pinNum);
+              }
+            }
+            if(!isNaN(pinNum) && pinNum >= 0 && pinNum <= 19) {
+              if(!trigPinFound) {
+                pinInfo.trig = pinNum;
+                trigPinFound = true;
+              } else if(!echoPinFound && pinNum !== pinInfo.trig) {
+                pinInfo.echo = pinNum;
+                echoPinFound = true;
+              }
+            }
+          }
+        }
+      }
+      
+      // codeText에서 직접 추출 시도 ("ping trig 80" -> P0)
+      if(!trigPinFound || !echoPinFound) {
+        const codeText = analysisResult.codeText || '';
+        // "ping trig 80" 또는 "trig 80" 패턴 찾기
+        const trigMatch = codeText.match(/(?:ping\s*)?trig\s*(?:P\s*)?(\d{1,2})/i);
+        if(trigMatch && !trigPinFound) {
+          let pinNum = parseInt(trigMatch[1]);
+          if(pinNum >= 80 && pinNum <= 89) pinNum = pinNum % 10;
+          if(pinNum >= 0 && pinNum <= 19) {
+            pinInfo.trig = pinNum;
+            trigPinFound = true;
+          }
+        }
+        // "echo 80" 또는 "echo P0" 패턴 찾기
+        const echoMatch = codeText.match(/echo\s*(?:P\s*)?(\d{1,2})/i);
+        if(echoMatch && !echoPinFound) {
+          let pinNum = parseInt(echoMatch[1]);
+          if(pinNum >= 80 && pinNum <= 89) pinNum = pinNum % 10;
+          if(pinNum >= 0 && pinNum <= 19) {
+            pinInfo.echo = pinNum;
+            echoPinFound = true;
+          }
+        }
+      }
+      
+      // 핀 번호를 찾았으면 시뮬레이터 업데이트
+      if(trigPinFound && echoPinFound) {
+        // STEP 1 피드백 메시지 업데이트
+        const feedbackEl = document.getElementById('simulator-feedback-msg');
+        if(feedbackEl) {
+          feedbackEl.innerHTML = `✅ STEP 0에서 핀 번호를 찾았어요! Trig: P${pinInfo.trig}, Echo: P${pinInfo.echo}에 연결해주세요.`;
+          feedbackEl.style.color = "#8b5cf6";
+        }
+        
+        if(typeof drawSimulator === 'function') {
+          drawSimulator();
+        }
+      }
+      
+      // AI 피드백 요청 (OCR 결과 경고 메시지 없이 바로 피드백 표시)
+      const codeText = analysisResult.codeText || '';
+      const foundPins = analysisResult.foundPins || [];
+      requestAICodeFeedback(codeText, pinInfo.trig, pinInfo.echo, foundPins);
+      
     } catch(error) {
       console.error(error);
-      statusDiv.innerHTML = '❌ 글자를 읽는데 실패했어요. 더 선명한 사진을 올려주세요.';
+      statusDiv.innerHTML = '❌ 코드 분석 중 오류가 발생했습니다.';
+      resultArea.innerHTML = `<div class="ocr-result-box ocr-error">
+        ❌ 오류: ${error.message}<br>
+        API 키가 올바르게 설정되어 있는지 확인해주세요.
+      </div>`;
     }
   }
   
@@ -7902,25 +8161,100 @@
     let errors = [];
     let warnings = [];
     
+    // OCR 오류 보정: "80"을 "P0"로, "81"을 "P1"로 등 변환
+    let correctedText = text;
+    
+    // "ping trig 80" -> "ping trig P0" 같은 패턴 보정
+    // "80", "81", "82" 등을 "P0", "P1", "P2"로 변환 (OCR이 P를 8로 잘못 인식하는 경우)
+    correctedText = correctedText.replace(/(ping\s*trig|trig)\s*([8][0-9]|[0-9]{1,2})/gi, (match, prefix, num) => {
+      let pinNum = parseInt(num);
+      // 80-89는 P0-P9로 변환 (OCR 오류 보정)
+      if(pinNum >= 80 && pinNum <= 89) {
+        return prefix + ' P' + (pinNum % 10);
+      }
+      // 0-19는 P0-P19로 변환
+      if(pinNum >= 0 && pinNum <= 19) {
+        return prefix + ' P' + pinNum;
+      }
+      return match;
+    });
+    
+    // "echo 80" -> "echo P0" 같은 패턴 보정
+    correctedText = correctedText.replace(/echo\s*([8][0-9]|[0-9]{1,2})/gi, (match, num) => {
+      let pinNum = parseInt(num);
+      // 80-89는 P0-P9로 변환
+      if(pinNum >= 80 && pinNum <= 89) {
+        return match.replace(num, 'P' + (pinNum % 10));
+      }
+      // 0-19는 P0-P19로 변환
+      if(pinNum >= 0 && pinNum <= 19) {
+        return match.replace(num, 'P' + pinNum);
+      }
+      return match;
+    });
+    
+    // 단독으로 나타나는 "80", "81" 등을 "P0", "P1"로 변환 (컨텍스트가 없는 경우)
+    correctedText = correctedText.replace(/\b([8][0-9])\b/g, (match, num) => {
+      let pinNum = parseInt(num);
+      if(pinNum >= 80 && pinNum <= 89) {
+        return 'P' + (pinNum % 10);
+      }
+      return match;
+    });
+    
+    // 핀 번호 패턴 매칭 (P + 숫자)
     const pinPattern = /P\s*(\d+)/gi;
     const allPins = [];
     let match;
-    while((match = pinPattern.exec(text)) !== null) {
+    while((match = pinPattern.exec(correctedText)) !== null) {
       const pinNum = match[1];
       allPins.push(parseInt(pinNum));
     }
+    
+    // 컨텍스트 기반 핀 번호 추출: "ping trig" 또는 "trig" 다음의 숫자
+    const trigContextPatterns = [
+      /ping\s*trig\s*(\d{1,2})/gi,
+      /trig\s*(\d{1,2})/gi,
+      /ping\s*trig\s*P\s*(\d+)/gi,
+      /trig\s*P\s*(\d+)/gi
+    ];
+    trigContextPatterns.forEach(pattern => {
+      const matches = [...correctedText.matchAll(pattern)];
+      matches.forEach(m => {
+        if(m[1]) allPins.push(parseInt(m[1]));
+      });
+    });
+    
+    // "echo" 다음의 숫자
+    const echoContextPatterns = [
+      /echo\s*(\d{1,2})/gi,
+      /echo\s*P\s*(\d+)/gi
+    ];
+    echoContextPatterns.forEach(pattern => {
+      const matches = [...correctedText.matchAll(pattern)];
+      matches.forEach(m => {
+        if(m[1]) allPins.push(parseInt(m[1]));
+      });
+    });
+    
     const uniquePins = [...new Set(allPins)].sort((a, b) => a - b);
     
+    console.log("원본 OCR 텍스트:", text);
+    console.log("보정된 텍스트:", correctedText);
     console.log("추출된 핀 번호:", uniquePins);
+    
     if(uniquePins.length >= 1) {
       const trigPatterns = [
         /ping\s*trig\s*P\s*(\d+)/i,
+        /ping\s*trig\s*(\d{1,2})/i, // P 없이 숫자만
         /trig\s*P\s*(\d+)/i,
+        /trig\s*(\d{1,2})/i, // P 없이 숫자만
         /P\s*(\d+)[\s\S]{0,30}?trig/i,
         /trig[\s\S]{0,30}?P\s*(\d+)/i
       ];
       const echoPatterns = [
         /echo\s*P\s*(\d+)/i,
+        /echo\s*(\d{1,2})/i, // P 없이 숫자만
         /P\s*(\d+)[\s\S]{0,30}?echo/i,
         /echo[\s\S]{0,30}?P\s*(\d+)/i
       ];
@@ -7928,21 +8262,65 @@
       let trigPin = null;
       let echoPin = null;
       
-      for(const pattern of trigPatterns) {
-        const match = text.match(pattern);
-        if(match && match[1]) {
-          trigPin = parseInt(match[1]);
-          break;
+      // 보정된 텍스트와 원본 텍스트 모두 검색
+      const searchTexts = [correctedText, text];
+      
+      for(const searchText of searchTexts) {
+        for(const pattern of trigPatterns) {
+          const match = searchText.match(pattern);
+          if(match && match[1]) {
+            let pinNum = parseInt(match[1]);
+            // "80" -> "0"으로 변환 (OCR 오류 보정: P를 8로 잘못 인식)
+            if(pinNum >= 80 && pinNum <= 89) {
+              pinNum = pinNum % 10;
+            }
+            // 0-19 범위만 유효한 핀 번호
+            if(pinNum >= 0 && pinNum <= 19) {
+              trigPin = pinNum;
+              break;
+            }
+          }
         }
-      }
-      for(const pattern of echoPatterns) {
-        const match = text.match(pattern);
-        if(match && match[1]) {
-          echoPin = parseInt(match[1]);
-          break;
-        }
+        if(trigPin !== null) break;
       }
       
+      for(const searchText of searchTexts) {
+        for(const pattern of echoPatterns) {
+          const match = searchText.match(pattern);
+          if(match && match[1]) {
+            let pinNum = parseInt(match[1]);
+            // "80" -> "0"으로 변환 (OCR 오류 보정: P를 8로 잘못 인식)
+            if(pinNum >= 80 && pinNum <= 89) {
+              pinNum = pinNum % 10;
+            }
+            // 0-19 범위만 유효한 핀 번호
+            if(pinNum >= 0 && pinNum <= 19) {
+              echoPin = pinNum;
+              break;
+            }
+          }
+        }
+        if(echoPin !== null) break;
+      }
+      
+      // 컨텍스트 기반 직접 추출 (더 정확한 방법)
+      // "ping trig" 다음에 오는 숫자 찾기
+      const trigDirectMatch = correctedText.match(/(?:ping\s*)?trig\s*(?:P\s*)?(\d{1,2})/i) || text.match(/(?:ping\s*)?trig\s*(?:P\s*)?(\d{1,2})/i);
+      if(trigDirectMatch && trigDirectMatch[1]) {
+        let pinNum = parseInt(trigDirectMatch[1]);
+        if(pinNum >= 80 && pinNum <= 89) pinNum = pinNum % 10;
+        if(pinNum >= 0 && pinNum <= 19) trigPin = pinNum;
+      }
+      
+      // "echo" 다음에 오는 숫자 찾기
+      const echoDirectMatch = correctedText.match(/echo\s*(?:P\s*)?(\d{1,2})/i) || text.match(/echo\s*(?:P\s*)?(\d{1,2})/i);
+      if(echoDirectMatch && echoDirectMatch[1]) {
+        let pinNum = parseInt(echoDirectMatch[1]);
+        if(pinNum >= 80 && pinNum <= 89) pinNum = pinNum % 10;
+        if(pinNum >= 0 && pinNum <= 19) echoPin = pinNum;
+      }
+      
+      // 여전히 찾지 못했으면 발견된 핀 번호 사용
       if(!trigPin && uniquePins.length >= 1) {
         trigPin = uniquePins[0];
       }
@@ -7955,18 +8333,6 @@
       if(trigPin !== null && echoPin !== null) {
         pinInfo.trig = trigPin;
         pinInfo.echo = echoPin;
-        const dispTrig = document.getElementById('disp-trig');
-        const dispEcho = document.getElementById('disp-echo');
-        const pinResult = document.getElementById('pinResult');
-        if(dispTrig) dispTrig.innerText = pinInfo.trig;
-        if(dispEcho) dispEcho.innerText = pinInfo.echo;
-        if(pinResult) pinResult.style.display = 'flex';
-        
-        resultArea.innerHTML = `<div class="ocr-result-box ocr-success">
-          ✅ <strong>핀 번호 추출 완료!</strong><br>
-          Trig: P${pinInfo.trig}, Echo: P${pinInfo.echo}<br>
-          STEP 1에서 이 핀 번호에 맞게 연결해주세요!
-        </div>`;
         
         if(typeof drawSimulator === 'function') {
           drawSimulator();
@@ -7978,12 +8344,9 @@
       warnings.push(`⚠️ <strong>핀 번호를 찾지 못했어요.</strong><br>코드에서 P0, P1, P2 같은 핀 번호가 보이지 않습니다.<br>OCR 텍스트: ${text.substring(0, 200)}...`);
     }
     
-    if(errors.length > 0) {
-      resultArea.innerHTML += errors.map(e => `<div class="ocr-result-box ocr-error">${e}</div>`).join('');
-    }
-    if(warnings.length > 0 && !pinInfo.trig) {
-      resultArea.innerHTML += warnings.map(w => `<div class="ocr-result-box ocr-warning">${w}</div>`).join('');
-    }
+    // OCR 결과 경고 메시지 표시하지 않음 (AI 피드백만 표시)
+    resultArea.innerHTML = '';
+    resultArea.style.display = 'none';
     
     // AI 피드백 요청
     requestAICodeFeedback(ocrText, pinInfo.trig, pinInfo.echo, uniquePins);
@@ -8008,30 +8371,24 @@
     feedbackContent.innerHTML = '<div class="loader"></div> AI가 코드를 분석하고 있어요...';
     
     try {
-      const prompt = `당신은 마이크로비트 초음파 센서 프로그래밍 전문가입니다. 학생이 작성한 블록 코드를 분석하고 친절하게 피드백해주세요.
+      const prompt = `마이크로비트 초음파 센서 블록 코드를 분석해주세요.
 
-**OCR로 추출된 텍스트:**
+**코드 텍스트:**
 ${ocrText.substring(0, 500)}
 
 **추출된 핀 정보:**
-- Trig 핀: ${trigPin ? `P${trigPin}` : '찾지 못함'}
-- Echo 핀: ${echoPin ? `P${echoPin}` : '찾지 못함'}
-- 발견된 핀 번호: ${foundPins.length > 0 ? foundPins.map(p => `P${p}`).join(', ') : '없음'}
+- Trig 핀: ${trigPin !== null && trigPin !== undefined ? `P${trigPin}` : '찾지 못함'}
+- Echo 핀: ${echoPin !== null && echoPin !== undefined ? `P${echoPin}` : '찾지 못함'}
 
 다음 JSON 형식으로만 응답하세요:
 {
-  "summary": "코드에 대한 간단한 요약 (1-2문장)",
-  "strengths": ["잘한 점 1", "잘한 점 2"],
-  "improvements": ["개선할 점 1", "개선할 점 2"],
-  "pinFeedback": "핀 번호 추출 및 연결에 대한 피드백",
-  "suggestions": ["추가 제안 1", "추가 제안 2"]
+  "trigPin": ${trigPin !== null && trigPin !== undefined ? trigPin : 'null'},
+  "echoPin": ${echoPin !== null && echoPin !== undefined ? echoPin : 'null'},
+  "feedback": "코드가 올바르면 '잘했습니다!' 한 단어만. 문제가 있으면 핵심만 한 문장으로 (예: 'Trig와 Echo가 같은 핀입니다' 또는 '핀 번호를 확인해주세요')"
 }
 
-중요:
-- 학생을 격려하는 톤으로 작성
-- 구체적이고 실용적인 피드백 제공
-- 초음파 센서의 올바른 사용법 강조
-- 핀 번호가 없거나 잘못 추출된 경우 친절하게 안내`;
+핀 번호를 확실하게 확인해서 trigPin과 echoPin에 숫자로만 입력해주세요.
+피드백은 매우 간결하게 작성해주세요. 긴 설명은 필요 없습니다.`;
 
       const response = await fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
@@ -8051,8 +8408,8 @@ ${ocrText.substring(0, 500)}
               content: prompt
             }
           ],
-          temperature: 0.7,
-          max_tokens: 1500
+          temperature: 0.3,
+          max_tokens: 300
         })
       });
       
@@ -8075,57 +8432,62 @@ ${ocrText.substring(0, 500)}
       } catch(e) {
         console.error('JSON 파싱 오류:', e, content);
         feedback = {
-          summary: content.split('\n')[0] || '코드 분석이 완료되었습니다.',
-          strengths: [],
-          improvements: [],
-          pinFeedback: '',
-          suggestions: []
+          trigPin: trigPin,
+          echoPin: echoPin,
+          feedback: '코드 분석이 완료되었습니다.'
         };
       }
       
-      // 피드백 표시
-      let feedbackHTML = '';
-      
-      if(feedback.summary) {
-        feedbackHTML += `<div style="margin-bottom: 15px; padding: 12px; background: rgba(255,255,255,0.5); border-radius: 6px;">
-          <strong style="color: #7c3aed;">📋 요약:</strong> ${feedback.summary}
-        </div>`;
+      // 핀 번호 업데이트 (GPT가 더 정확하게 찾았을 수 있음)
+      if(feedback.trigPin !== null && feedback.trigPin !== undefined && !isNaN(feedback.trigPin)) {
+        pinInfo.trig = parseInt(feedback.trigPin);
+      }
+      if(feedback.echoPin !== null && feedback.echoPin !== undefined && !isNaN(feedback.echoPin)) {
+        pinInfo.echo = parseInt(feedback.echoPin);
       }
       
-      if(feedback.strengths && feedback.strengths.length > 0) {
-        feedbackHTML += `<div style="margin-bottom: 15px;">
-          <strong style="color: #10b981;">✅ 잘한 점:</strong>
-          <ul style="margin: 8px 0 0 20px; color: #475569;">
-            ${feedback.strengths.map(s => `<li>${s}</li>`).join('')}
-          </ul>
-        </div>`;
+      if(typeof drawSimulator === 'function') {
+        drawSimulator();
       }
       
-      if(feedback.improvements && feedback.improvements.length > 0) {
-        feedbackHTML += `<div style="margin-bottom: 15px;">
-          <strong style="color: #f59e0b;">💡 개선할 점:</strong>
-          <ul style="margin: 8px 0 0 20px; color: #475569;">
-            ${feedback.improvements.map(i => `<li>${i}</li>`).join('')}
-          </ul>
-        </div>`;
+      // 간단한 피드백 표시
+      const finalTrigPin = pinInfo.trig !== null ? pinInfo.trig : (feedback.trigPin !== null ? feedback.trigPin : '?');
+      const finalEchoPin = pinInfo.echo !== null ? pinInfo.echo : (feedback.echoPin !== null ? feedback.echoPin : '?');
+      
+      // Trig와 Echo가 같은 핀인지 확인
+      const isSamePin = (finalTrigPin !== '?' && finalEchoPin !== '?' && finalTrigPin === finalEchoPin);
+      
+      // 피드백 메시지에 오류 표시 추가
+      let feedbackMessage = feedback.feedback || '';
+      if(isSamePin && !feedbackMessage.includes('오류') && !feedbackMessage.includes('문제') && !feedbackMessage.includes('❌') && !feedbackMessage.includes('⚠️')) {
+        feedbackMessage = `❌ 오류: ${feedbackMessage}`;
       }
       
-      if(feedback.pinFeedback) {
-        feedbackHTML += `<div style="margin-bottom: 15px; padding: 12px; background: rgba(139, 92, 246, 0.1); border-radius: 6px;">
-          <strong style="color: #7c3aed;">🔌 핀 연결 피드백:</strong> ${feedback.pinFeedback}
-        </div>`;
-      }
+      // 피드백 영역 스타일 결정 (오류가 있으면 빨간색 테두리)
+      const borderColor = isSamePin ? '#ef4444' : '#8b5cf6';
+      const bgColor = isSamePin ? 'rgba(239, 68, 68, 0.1)' : 'rgba(139, 92, 246, 0.1)';
+      const textColor = isSamePin ? '#dc2626' : '#475569';
       
-      if(feedback.suggestions && feedback.suggestions.length > 0) {
-        feedbackHTML += `<div style="margin-bottom: 15px;">
-          <strong style="color: #6366f1;">💭 추가 제안:</strong>
-          <ul style="margin: 8px 0 0 20px; color: #475569;">
-            ${feedback.suggestions.map(s => `<li>${s}</li>`).join('')}
-          </ul>
-        </div>`;
-      }
+      let feedbackHTML = `<div style="padding: 15px; background: ${bgColor}; border-radius: 8px; border-left: 4px solid ${borderColor};">
+        <div style="font-weight: bold; color: #7c3aed; margin-bottom: 10px; font-size: 16px;">
+          🔌 핀 연결 정보
+        </div>
+        <div style="color: #475569; margin-bottom: 12px; font-size: 15px;">
+          <strong>Trig 핀:</strong> P${finalTrigPin}<br>
+          <strong>Echo 핀:</strong> P${finalEchoPin}
+          ${isSamePin ? ' <span style="color: #ef4444; font-weight: bold;">⚠️ 같은 핀!</span>' : ''}
+        </div>
+        ${feedbackMessage && feedbackMessage.trim() ? `
+        <div style="color: ${textColor}; padding-top: 10px; border-top: 1px solid rgba(139, 92, 246, 0.2); font-size: 14px; font-weight: ${isSamePin ? 'bold' : 'normal'};">
+          ${feedbackMessage}
+        </div>
+        ` : ''}
+      </div>`;
       
-      feedbackContent.innerHTML = feedbackHTML || '피드백을 생성할 수 없습니다.';
+      feedbackContent.innerHTML = feedbackHTML;
+      
+      // STEP 0에서 오류가 발생하면 STEP 1 비활성화
+      checkStep1Availability();
       
     } catch(error) {
       console.error('AI 피드백 오류:', error);
@@ -8304,7 +8666,8 @@ ${ocrText.substring(0, 500)}
     const gndCorrect = gndConn && gndConn.status === 'correct' && gndConn.endPin.group === "right_header" && gndConn.endPin.label === "G";
     let trigCorrect = true;
     let echoCorrect = true;
-    if(pinInfo.trig && pinInfo.echo) {
+    // 핀 번호가 0일 수 있으므로 명시적으로 null/undefined 체크
+    if((pinInfo.trig !== null && pinInfo.trig !== undefined) && (pinInfo.echo !== null && pinInfo.echo !== undefined)) {
       trigCorrect = trigConn && trigConn.status === 'correct' && trigConn.endPin.pinNumber === parseInt(pinInfo.trig);
       echoCorrect = echoConn && echoConn.status === 'correct' && echoConn.endPin.pinNumber === parseInt(pinInfo.echo);
     } else {
@@ -8315,25 +8678,27 @@ ${ocrText.substring(0, 500)}
       if(trigCorrect && echoCorrect && vccCorrect && gndCorrect) {
         setTimeout(() => {
           if(feedbackEl) {
-            const pinInfoText = pinInfo.trig && pinInfo.echo ? `<br>Trig: P${pinInfo.trig}, Echo: P${pinInfo.echo}` : '';
+            // 핀 번호가 0일 수 있으므로 명시적으로 체크
+            const pinInfoText = ((pinInfo.trig !== null && pinInfo.trig !== undefined) && (pinInfo.echo !== null && pinInfo.echo !== undefined)) ? `<br>Trig: P${pinInfo.trig}, Echo: P${pinInfo.echo}` : '';
             feedbackEl.innerHTML = `🎉 <b>완벽해요!</b> 모든 핀이 올바르게 연결되었습니다!${pinInfoText}`;
             feedbackEl.style.color = "#10b981";
           }
         }, 500);
       } else {
         const errors = [];
-        if(pinInfo.trig && pinInfo.echo) {
+        // 핀 번호가 0일 수 있으므로 명시적으로 null/undefined 체크
+        if((pinInfo.trig !== null && pinInfo.trig !== undefined) && (pinInfo.echo !== null && pinInfo.echo !== undefined)) {
           if(!trigCorrect) {
-            const currentPin = trigConn ? trigConn.endPin.pinNumber : '연결 안됨';
-            errors.push(`Trig는 P${pinInfo.trig}에 연결해야 해요 (현재: P${currentPin})`);
+            const currentPin = trigConn && trigConn.endPin.pinNumber !== undefined ? trigConn.endPin.pinNumber : '연결 안됨';
+            errors.push(`Trig는 노란색(S) 핀 P${pinInfo.trig}에 연결해야 해요 (현재: ${currentPin !== '연결 안됨' ? 'P' + currentPin : currentPin})`);
           }
           if(!echoCorrect) {
-            const currentPin = echoConn ? echoConn.endPin.pinNumber : '연결 안됨';
-            errors.push(`Echo는 P${pinInfo.echo}에 연결해야 해요 (현재: P${currentPin})`);
+            const currentPin = echoConn && echoConn.endPin.pinNumber !== undefined ? echoConn.endPin.pinNumber : '연결 안됨';
+            errors.push(`Echo는 노란색(S) 핀 P${pinInfo.echo}에 연결해야 해요 (현재: ${currentPin !== '연결 안됨' ? 'P' + currentPin : currentPin})`);
           }
         } else {
-          if(!trigCorrect) errors.push(`Trig 연결을 확인해주세요`);
-          if(!echoCorrect) errors.push(`Echo 연결을 확인해주세요`);
+          if(!trigCorrect) errors.push(`Trig는 노란색(S) 핀에 연결해야 해요`);
+          if(!echoCorrect) errors.push(`Echo는 노란색(S) 핀에 연결해야 해요`);
         }
         if(!vccCorrect) errors.push(`VCC는 확장보드 우측 VC에 연결해야 해요`);
         if(!gndCorrect) errors.push(`GND는 확장보드 우측 G에 연결해야 해요`);
@@ -8367,31 +8732,44 @@ ${ocrText.substring(0, 500)}
       return { isCorrect: false, msg: "VCC는 확장보드 우측 VC 핀에 연결해야 해요." };
     }
     if(source.type === "Signal") {
+      // 노란색 핀(S 핀)에만 연결 가능
       if(target.type !== "Signal") {
-        if(target.type === "Comm") return { isCorrect: false, msg: "이 핀은 통신용(TX/RX)입니다. 번호가 있는 핀을 쓰세요." };
-        return { isCorrect: false, msg: "신호선은 노랑/파랑(S) 핀에 연결하세요." };
+        if(target.type === "Comm") return { isCorrect: false, msg: "이 핀은 통신용(TX/RX)입니다. 번호가 있는 노란색(S) 핀을 쓰세요." };
+        return { isCorrect: false, msg: "신호선은 노란색(S) 핀에 연결하세요." };
       }
-      if(pinInfo.trig && pinInfo.echo) {
-        const targetPinNum = target.pinNumber;
-        if(source.name === "Trig") {
-          if(targetPinNum === parseInt(pinInfo.trig)) {
-            return { isCorrect: true };
-          } else {
-            return { isCorrect: false, msg: `❌ Trig는 P${pinInfo.trig} 핀에 연결해야 해요! (현재: P${targetPinNum || '?'})` };
-          }
-        }
-        if(source.name === "Echo") {
-          if(targetPinNum === parseInt(pinInfo.echo)) {
-            return { isCorrect: true };
-          } else {
-            return { isCorrect: false, msg: `❌ Echo는 P${pinInfo.echo} 핀에 연결해야 해요! (현재: P${targetPinNum || '?'})` };
-          }
-        }
+      
+      // 핀 번호가 없는 Signal 핀은 허용하지 않음
+      if(target.pinNumber === undefined || target.pinNumber === null) {
+        return { isCorrect: false, msg: "번호가 있는 노란색(S) 핀에 연결하세요." };
       }
-      if(!pinInfo.trig || !pinInfo.echo) {
+      
+      // STEP 0에서 추출한 핀 정보 확인 (핀 번호가 0일 수 있으므로 명시적으로 체크)
+      if((pinInfo.trig === null || pinInfo.trig === undefined) || (pinInfo.echo === null || pinInfo.echo === undefined)) {
         return { isCorrect: false, msg: "⚠️ STEP 0에서 코드를 분석하여 Trig와 Echo 핀 번호를 먼저 추출해주세요!" };
       }
-      return { isCorrect: true };
+      
+      const targetPinNum = target.pinNumber;
+      
+      // Trig 핀 검증
+      if(source.name === "Trig") {
+        if(targetPinNum === parseInt(pinInfo.trig)) {
+          return { isCorrect: true };
+        } else {
+          return { isCorrect: false, msg: `❌ Trig는 노란색(S) 핀 P${pinInfo.trig}에 연결해야 해요! (현재: P${targetPinNum})` };
+        }
+      }
+      
+      // Echo 핀 검증
+      if(source.name === "Echo") {
+        if(targetPinNum === parseInt(pinInfo.echo)) {
+          return { isCorrect: true };
+        } else {
+          return { isCorrect: false, msg: `❌ Echo는 노란색(S) 핀 P${pinInfo.echo}에 연결해야 해요! (현재: P${targetPinNum})` };
+        }
+      }
+      
+      // 다른 Signal 핀은 허용하지 않음
+      return { isCorrect: false, msg: "Trig 또는 Echo 핀만 연결할 수 있습니다." };
     }
     return { isCorrect: false, msg: "잘못된 연결입니다." };
   }
